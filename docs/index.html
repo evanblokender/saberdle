@@ -1,37 +1,225 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Beatdle</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beatdle - Daily Beat Saber Song Game</title>
+  <meta name="description" content="Guess the Beat Saber song from an audio preview. A new song every day!">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="card">
-  <h1>🎵 Beatdle</h1>
-
-  <!-- Hidden audio element -->
-  <audio id="audio"></audio>
-
-  <!-- Custom media player -->
-  <div id="player">
-    <button id="play">Play Preview</button>
-    <div id="progress-container">
-      <div id="progress-bar"></div>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <h1 class="logo">🎵 Beatdle</h1>
+      <div class="header-buttons">
+        <button id="stats-btn" class="icon-btn" aria-label="View Statistics">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 3v18h18"></path>
+            <path d="M18 17V9"></path>
+            <path d="M13 17V5"></path>
+            <path d="M8 17v-3"></path>
+          </svg>
+        </button>
+        <button id="help-btn" class="icon-btn" aria-label="How to Play">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </button>
+        <button id="theme-btn" class="icon-btn" aria-label="Toggle Theme">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+          </svg>
+        </button>
+      </div>
     </div>
-    <span id="time">0:00</span> / <span id="duration">0:00</span>
+  </header>
+
+  <!-- Main Game -->
+  <main class="container">
+    <div class="game-card">
+      <!-- Game Info -->
+      <div class="game-info">
+        <div class="info-item">
+          <span class="info-label">Attempts</span>
+          <span class="info-value" id="attempts-count">0/6</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Preview</span>
+          <span class="info-value" id="preview-time">3s</span>
+        </div>
+      </div>
+
+      <!-- Audio Player -->
+      <audio id="audio"></audio>
+      <div class="player-section">
+        <button id="play-btn" class="play-button">
+          <svg class="play-icon" width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z"></path>
+          </svg>
+          <span>Play Preview</span>
+        </button>
+        
+        <!-- Progress Bar -->
+        <div class="progress-wrapper">
+          <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+            <div id="progress-glow" class="progress-glow"></div>
+          </div>
+          <div class="time-display">
+            <span id="current-time">0:00</span>
+            <span id="total-time">0:03</span>
+          </div>
+        </div>
+
+        <!-- Waveform Visualizer -->
+        <div class="visualizer">
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+          <div class="bar"></div>
+        </div>
+      </div>
+
+      <!-- Skip Button -->
+      <button id="skip-btn" class="skip-button">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 4l10 8-10 8V4z"></path>
+          <line x1="19" y1="5" x2="19" y2="19"></line>
+        </svg>
+        Skip (+2s preview)
+      </button>
+
+      <!-- Input Section -->
+      <div class="input-section">
+        <div class="input-wrapper">
+          <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <path d="m21 21-4.35-4.35"></path>
+          </svg>
+          <input 
+            id="guess-input" 
+            type="text" 
+            placeholder="Search for a song..."
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        <div id="autocomplete-results" class="autocomplete-results"></div>
+      </div>
+
+      <!-- Guesses -->
+      <div id="guesses-container" class="guesses-container"></div>
+
+      <!-- Game Over Section -->
+      <div id="game-over" class="game-over hidden">
+        <div class="result-message" id="result-message"></div>
+        <button id="share-btn" class="share-button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+          </svg>
+          Share Result
+        </button>
+        <div class="next-game">
+          Next Beatdle in <span id="countdown">--:--:--</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Help Modal -->
+  <div id="help-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>How to Play</h2>
+        <button class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Guess the Beat Saber song from an audio preview!</p>
+        
+        <div class="instruction">
+          <div class="instruction-icon">🎵</div>
+          <div>
+            <strong>Listen to the preview</strong>
+            <p>Start with a 3-second clip of the song</p>
+          </div>
+        </div>
+
+        <div class="instruction">
+          <div class="instruction-icon">🔍</div>
+          <div>
+            <strong>Make your guess</strong>
+            <p>Type to search for ranked Beat Saber songs</p>
+          </div>
+        </div>
+
+        <div class="instruction">
+          <div class="instruction-icon">⏭️</div>
+          <div>
+            <strong>Skip to unlock more</strong>
+            <p>Each skip or wrong guess adds 2 seconds to the preview</p>
+          </div>
+        </div>
+
+        <div class="instruction">
+          <div class="instruction-icon">🎯</div>
+          <div>
+            <strong>Win or learn</strong>
+            <p>You have 6 attempts to guess the song correctly!</p>
+          </div>
+        </div>
+
+        <p class="note">A new song is available every day at midnight UTC!</p>
+      </div>
+    </div>
   </div>
 
-  <button id="skip">Skip</button>
+  <!-- Stats Modal -->
+  <div id="stats-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Statistics</h2>
+        <button class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="stats-grid">
+          <div class="stat-item">
+            <div class="stat-value" id="stat-played">0</div>
+            <div class="stat-label">Played</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-wins">0</div>
+            <div class="stat-label">Wins</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-streak">0</div>
+            <div class="stat-label">Current Streak</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value" id="stat-max-streak">0</div>
+            <div class="stat-label">Max Streak</div>
+          </div>
+        </div>
 
-  <input id="guess" placeholder="Guess the song..." autocomplete="off">
-  <div id="results"></div>
+        <h3>Guess Distribution</h3>
+        <div class="distribution" id="distribution"></div>
+      </div>
+    </div>
+  </div>
 
-  <div id="guesses"></div>
-  <button id="share" hidden>Share Score</button>
-  <div id="answer"></div>
-</div>
+  <!-- Toast Notification -->
+  <div id="toast" class="toast"></div>
 
-<script src="main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
