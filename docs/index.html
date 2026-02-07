@@ -1,26 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beatdle</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="card">
-  <h1>🎧 Beatdle</h1>
+  <h1>🎵 Beatdle</h1>
 
-  <audio id="audio"></audio>
+  <audio id="audio" controls></audio>
 
-  <button id="play">Play</button>
+  <button id="play">Play Preview</button>
   <button id="skip">Skip</button>
 
-  <input id="guess" placeholder="Search map..." autocomplete="off">
+  <input id="guess" placeholder="Guess the song..." autocomplete="off">
   <div id="results"></div>
 
   <div id="guesses"></div>
-
-  <button id="share" hidden>Share</button>
+  <button id="share" hidden>Share Score</button>
 </div>
 
 <script src="main.js"></script>
