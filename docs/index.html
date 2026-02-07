@@ -10,9 +10,14 @@
 <div class="card">
   <h1>🎵 Beatdle</h1>
 
-  <audio id="audio" controls></audio>
+  <div id="player">
+    <button id="play">Play Preview</button>
+    <div id="progress-container">
+      <div id="progress-bar"></div>
+    </div>
+    <span id="time">0:00</span> / <span id="duration">0:00</span>
+  </div>
 
-  <button id="play">Play Preview</button>
   <button id="skip">Skip</button>
 
   <input id="guess" placeholder="Guess the song..." autocomplete="off">
@@ -20,8 +25,10 @@
 
   <div id="guesses"></div>
   <button id="share" hidden>Share Score</button>
+  <div id="answer" style="margin-top:12px;font-weight:bold;"></div>
 </div>
 
+<script src="player.js"></script>
 <script src="main.js"></script>
 </body>
 </html>
