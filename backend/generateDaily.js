@@ -39,6 +39,6 @@ function seededRandom(seed) {
     previewURL: map.versions[0].previewURL
   };
 
-  fs.writeFileSync("./frontend/data.json", JSON.stringify(daily, null, 2));
+  fs.writeFileSync("./docs/data.json", JSON.stringify(daily, null, 2));
   console.log("Daily map generated:", seed);
 })();
