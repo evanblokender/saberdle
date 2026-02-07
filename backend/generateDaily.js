@@ -20,25 +20,41 @@ function seededRandom(seed) {
   };
 }
 
-(async () => {
+async function pickRankedMap() {
   const seed = getDaySeed();
   const rand = seededRandom(seed);
 
-  const page = Math.floor(rand() * 50);
-  const res = await fetch(
-    `https://api.beatsaver.com/search/text/${page}?q=&ranked=true`
-  );
-  const data = await res.json();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const page = Math.floor(rand() * 50);
+    const res = await fetch(`https://api.beatsaver.com/search/text/${page}?q=&ranked=true`);
+    const data = await res.json();
+    if (!data.docs || data.docs.length === 0) continue;
 
-  const map = data.docs[Math.floor(rand() * data.docs.length)];
+    const map = data.docs[Math.floor(rand() * data.docs.length)];
+    if (map && map.versions && map.versions.length > 0 && map.versions[0].previewURL) {
+      return map;
+    }
+  }
 
-  const daily = {
-    date: seed,
-    mapId: map.id,
-    songName: map.metadata.songName,
-    previewURL: map.versions[0].previewURL
-  };
+  throw new Error("No valid ranked map with preview found");
+}
 
-  fs.writeFileSync("./docs/data.json", JSON.stringify(daily, null, 2));
-  console.log("Daily map generated:", seed);
+(async () => {
+  try {
+    const map = await pickRankedMap();
+    const daily = {
+      date: getDaySeed(),
+      mapId: map.id,
+      songName: map.metadata.songName,
+      previewURL: map.versions[0].previewURL
+    };
+
+    if (!fs.existsSync("./docs")) fs.mkdirSync("./docs");
+
+    fs.writeFileSync("./docs/data.json", JSON.stringify(daily, null, 2));
+    console.log("Daily map:", daily.songName);
+  } catch (err) {
+    console.error("Error generating daily map:", err);
+    process.exit(1);
+  }
 })();
