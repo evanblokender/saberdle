@@ -14,7 +14,7 @@ let infiniteSongs = [];
 let currentInfiniteSong = null;
 
 // Version for cache busting
-const APP_VERSION = "2.0.2";
+const APP_VERSION = "2.0.3";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -200,19 +200,31 @@ function switchMode(newMode) {
 // Infinite Mode
 async function loadInfiniteMode() {
   try {
+    // BeatSaver API has pages of 20 songs each
+    // Let's randomize which page we fetch from (0-99 gives us access to 2000 songs)
+    const randomPage = Math.floor(Math.random() * 100);
+    
+    // Also randomize sort order to get more variety
+    const sortOrders = ['Relevance', 'Rating', 'Latest'];
+    const randomSort = sortOrders[Math.floor(Math.random() * sortOrders.length)];
+    
+    console.log(`Loading infinite mode: page ${randomPage}, sort ${randomSort}`);
+    
     // Load random ranked song from BeatSaver
     const response = await fetch(
-      `https://api.beatsaver.com/search/text/0?sortOrder=Relevance&ranked=true`
+      `https://api.beatsaver.com/search/text/${randomPage}?sortOrder=${randomSort}&ranked=true`
     );
     const data = await response.json();
     
     if (data.docs && data.docs.length > 0) {
-      // Get random song from results
+      // Get random song from this page's results
       const randomSong = data.docs[Math.floor(Math.random() * data.docs.length)];
       currentInfiniteSong = randomSong;
       
       answer = randomSong.metadata.songName.toLowerCase().trim();
       answerDisplay = randomSong.metadata.songName;
+      
+      console.log(`Selected song: ${answerDisplay}`);
       
       // Load preview URL
       if (randomSong.versions && randomSong.versions.length > 0) {
@@ -226,6 +238,30 @@ async function loadInfiniteMode() {
       const savedScore = localStorage.getItem("beatdle-infinite-score");
       infiniteScore = savedScore ? parseInt(savedScore) : 0;
       updateInfiniteScoreDisplay();
+    } else {
+      // If no songs found on this page, try page 0 as fallback
+      console.log("No songs on random page, trying page 0");
+      const fallbackResponse = await fetch(
+        `https://api.beatsaver.com/search/text/0?sortOrder=Rating&ranked=true`
+      );
+      const fallbackData = await fallbackResponse.json();
+      
+      if (fallbackData.docs && fallbackData.docs.length > 0) {
+        const randomSong = fallbackData.docs[Math.floor(Math.random() * fallbackData.docs.length)];
+        currentInfiniteSong = randomSong;
+        answer = randomSong.metadata.songName.toLowerCase().trim();
+        answerDisplay = randomSong.metadata.songName;
+        
+        if (randomSong.versions && randomSong.versions.length > 0) {
+          audio.src = randomSong.versions[0].previewURL;
+          audio.currentTime = 0;
+          updateTimeDisplay();
+        }
+        
+        const savedScore = localStorage.getItem("beatdle-infinite-score");
+        infiniteScore = savedScore ? parseInt(savedScore) : 0;
+        updateInfiniteScoreDisplay();
+      }
     }
   } catch (error) {
     console.error("Failed to load infinite mode song:", error);
