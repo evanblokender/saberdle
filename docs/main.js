@@ -401,7 +401,7 @@ function shareResult() {
     return "⬛";
   }).join("");
   
-  const text = `Beatdle ${dailyDate}\n${squares}\nhttps://evanblokender.org/beatdle`;
+  const text = `Beatdle ${dailyDate}\n${squares}\nhttps://evanblokender.org/saberdle`;
   
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
