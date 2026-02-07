@@ -13,6 +13,12 @@
     <div class="header-content">
       <h1 class="logo">🎵 Beatdle</h1>
       <div class="header-buttons">
+        <button id="mode-btn" class="icon-btn" aria-label="Change Mode">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24m-4.24 4.24l-4.24 4.24m13.08-4.24l-4.24-4.24m-4.24-4.24l-4.24-4.24"></path>
+          </svg>
+        </button>
         <button id="stats-btn" class="icon-btn" aria-label="View Statistics">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 3v18h18"></path>
@@ -43,12 +49,20 @@
       <!-- Game Info -->
       <div class="game-info">
         <div class="info-item">
+          <span class="info-label">Mode</span>
+          <span class="info-value" id="mode-indicator">Daily Mode</span>
+        </div>
+        <div class="info-item">
           <span class="info-label">Attempts</span>
           <span class="info-value" id="attempts-count">0/6</span>
         </div>
         <div class="info-item">
           <span class="info-label">Preview</span>
           <span class="info-value" id="preview-time">3s</span>
+        </div>
+        <div class="info-item" id="infinite-score-container" style="display: none;">
+          <span class="info-label">Score</span>
+          <span class="info-value" id="infinite-score">0</span>
         </div>
       </div>
 
@@ -129,6 +143,15 @@
             <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
           </svg>
           Share Result
+        </button>
+        <button id="reset-btn" class="reset-button" style="display: none;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+            <path d="M21 3v5h-5"></path>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
+            <path d="M3 21v-5h5"></path>
+          </svg>
+          Next Song
         </button>
         <div class="next-game">
           Next Beatdle in <span id="countdown">--:--:--</span>
@@ -213,6 +236,30 @@
 
         <h3>Guess Distribution</h3>
         <div class="distribution" id="distribution"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mode Selector Modal -->
+  <div id="mode-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Select Game Mode</h2>
+        <button class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="mode-selector">
+          <button class="mode-option" data-mode="daily">
+            <div class="mode-icon">📅</div>
+            <div class="mode-title">Daily Mode</div>
+            <div class="mode-description">One new song every day at midnight UTC. Track your stats and streaks!</div>
+          </button>
+          <button class="mode-option" data-mode="infinite">
+            <div class="mode-icon">♾️</div>
+            <div class="mode-title">Infinite Mode</div>
+            <div class="mode-description">Unlimited random songs! See how many you can guess in a row.</div>
+          </button>
+        </div>
       </div>
     </div>
   </div>
