@@ -2,24 +2,23 @@ let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
 
-const audio = document.getElementById("audio"); // use DOM audio
+const audio = document.getElementById("audio"); // hidden audio
+const playBtn = document.getElementById("play");
+const skipBtn = document.getElementById("skip");
+const progressBar = document.getElementById("progress-bar");
+const timeEl = document.getElementById("time");
+const durationEl = document.getElementById("duration");
 const guessInput = document.getElementById("guess");
 const results = document.getElementById("results");
 const guessesDiv = document.getElementById("guesses");
 const shareBtn = document.getElementById("share");
-const skipBtn = document.getElementById("skip");
 const answerDiv = document.getElementById("answer");
-
-const playBtn = document.getElementById("play");
-const progressBar = document.getElementById("progress-bar");
-const timeEl = document.getElementById("time");
-const durationEl = document.getElementById("duration");
 
 let isPlaying = false;
 let previewInterval = null;
 let answer = "";
 
-// Load daily map
+// load daily map
 async function loadDaily() {
   const d = await fetch("data.json").then(r => r.json());
   answer = d.songName.toLowerCase();
@@ -31,31 +30,33 @@ async function loadDaily() {
 }
 loadDaily();
 
-// Format seconds to mm:ss
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-// Play preview
 function playPreview() {
   if (isPlaying) return;
   audio.currentTime = 0;
-  audio.play().catch(e => console.log("Playback blocked:", e));
+  const playPromise = audio.play();
+  if (playPromise !== undefined) {
+    playPromise.catch(() => {
+      alert("Click the Play Preview button to start playback");
+      return;
+    });
+  }
   isPlaying = true;
 
   const start = Date.now();
   previewInterval = setInterval(() => {
     const elapsed = (Date.now() - start) / 1000;
-    const percent = Math.min(elapsed / previewTime * 100, 100);
-    progressBar.style.width = percent + "%";
+    progressBar.style.width = Math.min(elapsed / previewTime * 100, 100) + "%";
     timeEl.textContent = formatTime(elapsed);
     if (elapsed >= previewTime) stopPreview();
   }, 50);
 }
 
-// Stop preview
 function stopPreview() {
   audio.pause();
   isPlaying = false;
@@ -64,8 +65,9 @@ function stopPreview() {
   timeEl.textContent = formatTime(previewTime);
 }
 
-// Button click events
+// events
 playBtn.onclick = playPreview;
+
 skipBtn.onclick = () => {
   attempts++;
   previewTime += 2;
@@ -74,7 +76,7 @@ skipBtn.onclick = () => {
   playPreview();
 };
 
-// Autocomplete search
+// autocomplete
 guessInput.oninput = async () => {
   results.innerHTML = "";
   const q = guessInput.value.trim();
@@ -91,7 +93,6 @@ guessInput.oninput = async () => {
   });
 };
 
-// Submit guess
 function submitGuess(text) {
   guessInput.value = "";
   results.innerHTML = "";
@@ -107,7 +108,6 @@ function submitGuess(text) {
   }
 }
 
-// Add guess to DOM
 function addGuess(text, correct) {
   const div = document.createElement("div");
   div.textContent = (correct ? "✅ " : "❌ ") + text;
@@ -118,19 +118,16 @@ function addGuess(text, correct) {
   guessesDiv.appendChild(div);
 }
 
-// Win
 function winGame() {
   answerDiv.textContent = `🎉 Correct! The song was: ${answer}`;
   shareBtn.hidden = false;
 }
 
-// End
 function endGame() {
   answerDiv.textContent = `💀 Out of guesses! The song was: ${answer}`;
   shareBtn.hidden = false;
 }
 
-// Share
 shareBtn.onclick = () => {
   const squares = Array.from(guessesDiv.children)
     .map(d => d.textContent.includes("✅") ? "🟩" : "⬛")
