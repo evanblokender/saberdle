@@ -10,31 +10,39 @@ const shareBtn = document.getElementById("share");
 
 let answer = "";
 
-fetch("data.json")
-  .then(r => r.json())
-  .then(d => {
-    answer = d.songName.toLowerCase();
-    audio.src = d.previewURL;
-  });
+// Load daily map from data.json
+async function loadDaily() {
+  const d = await fetch("data.json").then(r => r.json());
+  answer = d.songName.toLowerCase();
+  audio.src = d.previewURL;
+}
+loadDaily();
 
+// Play button
 document.getElementById("play").onclick = () => {
   audio.currentTime = 0;
   audio.play();
   setTimeout(() => audio.pause(), previewTime * 1000);
 };
 
-document.getElementById("skip").onclick = () => fail("⏭ Skip");
+// Skip button
+document.getElementById("skip").onclick = () => {
+  attempts++;
+  previewTime += 2;
+  addGuess("⏭ Skip", false);
+  if (attempts >= maxAttempts) end();
+};
 
+// Autocomplete search
 guessInput.oninput = async () => {
   results.innerHTML = "";
-  if (guessInput.value.length < 2) return;
+  const q = guessInput.value.trim();
+  if (q.length < 2) return;
 
-  const r = await fetch(
-    `https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(guessInput.value)}`
-  );
-  const d = await r.json();
+  const data = await fetch(`https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(q)}&ranked=true`)
+    .then(r => r.json());
 
-  d.docs.slice(0,5).forEach(m => {
+  data.docs.slice(0,5).forEach(m => {
     const div = document.createElement("div");
     div.textContent = m.metadata.songName;
     div.onclick = () => submitGuess(m.metadata.songName);
@@ -42,44 +50,49 @@ guessInput.oninput = async () => {
   });
 };
 
+// Submit guess
 function submitGuess(text) {
   guessInput.value = "";
   results.innerHTML = "";
 
   if (text.toLowerCase() === answer) {
+    addGuess(text, true);
     win();
   } else {
-    fail(text);
+    attempts++;
+    previewTime += 2;
+    addGuess(text, false);
+    if (attempts >= maxAttempts) end();
   }
 }
 
-function fail(text) {
-  attempts++;
-  previewTime += 2;
-
+// Add guess to DOM
+function addGuess(text, correct) {
   const div = document.createElement("div");
-  div.textContent = "❌ " + text;
+  div.textContent = (correct ? "✅ " : "❌ ") + text;
+  div.style.background = correct ? "#00b894" : "#d63031";
+  div.style.padding = "8px";
+  div.style.marginBottom = "6px";
+  div.style.borderRadius = "8px";
   guessesDiv.appendChild(div);
-
-  if (attempts >= maxAttempts) end();
 }
 
+// Win
 function win() {
-  guessesDiv.innerHTML += "<div>✅ Correct!</div>";
+  guessesDiv.innerHTML += "<div style='background:#6c5ce7;padding:8px;border-radius:8px;margin-top:6px'>🎉 Correct! Share your score:</div>";
   shareBtn.hidden = false;
 }
 
+// End
 function end() {
-  guessesDiv.innerHTML += "<div>❌ Game Over (you're so ass)</div>";
+  guessesDiv.innerHTML += "<div style='background:#fdcb6e;padding:8px;border-radius:8px;margin-top:6px'>you are ass Out of guesses! Share your score:</div>";
   shareBtn.hidden = false;
 }
 
+// Share button
 shareBtn.onclick = () => {
   const squares = Array.from(guessesDiv.children)
     .map(d => d.textContent.includes("✅") ? "🟩" : "⬛")
     .join("");
-
-  navigator.clipboard.writeText(
-    `Beatdle ${new Date().toISOString().slice(0,10)}\n${squares}`
-  );
+  navigator.clipboard.writeText(`Beatdle ${new Date().toISOString().slice(0,10)}\n${squares}`);
 };
