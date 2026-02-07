@@ -14,7 +14,7 @@ let infiniteSongs = [];
 let currentInfiniteSong = null;
 
 // Version for cache busting
-const APP_VERSION = "2.0.1";
+const APP_VERSION = "2.0.2";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -136,39 +136,65 @@ function saveGameMode() {
 
 function updateModeDisplay() {
   const modeIndicator = document.getElementById("mode-indicator");
+  const countdownParent = document.getElementById("countdown")?.parentElement;
+  const infiniteScoreContainer = document.getElementById("infinite-score-container");
+  
   if (modeIndicator) {
     modeIndicator.textContent = gameMode === "daily" ? "Daily Mode" : "Infinite Mode";
   }
   
   // Show/hide mode-specific elements
   if (gameMode === "infinite") {
-    document.getElementById("countdown").parentElement.style.display = "none";
-    document.getElementById("infinite-score-container").style.display = "block";
+    if (countdownParent) countdownParent.style.display = "none";
+    if (infiniteScoreContainer) infiniteScoreContainer.style.display = "block";
     updateInfiniteScoreDisplay();
   } else {
-    document.getElementById("countdown").parentElement.style.display = "block";
-    document.getElementById("infinite-score-container").style.display = "none";
+    if (countdownParent) countdownParent.style.display = "block";
+    if (infiniteScoreContainer) infiniteScoreContainer.style.display = "none";
   }
 }
 
 function switchMode(newMode) {
-  if (gameMode === newMode) return;
+  console.log(`Switching from ${gameMode} to ${newMode}`);
   
-  gameMode = newMode;
-  saveGameMode();
-  
-  // Reset game state
-  resetGame();
-  
-  if (gameMode === "daily") {
-    loadDaily();
-  } else {
-    loadInfiniteMode();
+  if (gameMode === newMode) {
+    console.log("Already in this mode, ignoring");
+    return;
   }
   
-  updateModeDisplay();
-  closeModal(modeModal);
-  showToast(`Switched to ${gameMode === "daily" ? "Daily" : "Infinite"} Mode`);
+  try {
+    gameMode = newMode;
+    saveGameMode();
+    
+    // Reset game state FIRST before loading
+    console.log("Resetting game...");
+    resetGame();
+    
+    // Prevent restoration of saved state when switching modes
+    // by temporarily setting a flag
+    const skipRestore = true;
+    
+    console.log(`Loading ${gameMode} mode...`);
+    if (gameMode === "daily") {
+      loadDaily(skipRestore);
+    } else {
+      loadInfiniteMode();
+    }
+    
+    console.log("Updating mode display...");
+    updateModeDisplay();
+    
+    console.log("Closing modal...");
+    if (modeModal) {
+      closeModal(modeModal);
+    }
+    
+    showToast(`Switched to ${gameMode === "daily" ? "Daily" : "Infinite"} Mode`);
+    console.log("Mode switch complete!");
+  } catch (error) {
+    console.error("Error switching modes:", error);
+    showToast("Error switching modes. Please refresh the page.");
+  }
 }
 
 // Infinite Mode
@@ -237,7 +263,7 @@ function toggleTheme() {
 }
 
 // Load Daily Song
-async function loadDaily() {
+async function loadDaily(skipRestore = false) {
   try {
     const cacheBuster = `?v=${Date.now()}`;
     const data = await fetch(`data.json${cacheBuster}`).then(r => r.json());
@@ -245,17 +271,19 @@ async function loadDaily() {
     answerDisplay = data.songName;
     dailyDate = data.date;
     
-    // Check if already played today
-    const gameState = loadGameState();
-    if (gameState && gameState.date === dailyDate && gameState.completed) {
-      try {
-        restoreGameState(gameState);
-        return;
-      } catch (error) {
-        // Old format state that can't be restored - clear it and start fresh
-        console.log("Error restoring old game state, clearing...", error);
-        localStorage.removeItem(`beatdle-${dailyDate}`);
-        showToast("Old game state cleared. Please replay today's song!");
+    // Check if already played today (skip if switching modes)
+    if (!skipRestore) {
+      const gameState = loadGameState();
+      if (gameState && gameState.date === dailyDate && gameState.completed) {
+        try {
+          restoreGameState(gameState);
+          return;
+        } catch (error) {
+          // Old format state that can't be restored - clear it and start fresh
+          console.log("Error restoring old game state, clearing...", error);
+          localStorage.removeItem(`beatdle-${dailyDate}`);
+          showToast("Old game state cleared. Please replay today's song!");
+        }
       }
     }
     
