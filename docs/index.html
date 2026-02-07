@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Beatdle - Daily Beat Saber Song Game</title>
   <meta name="description" content="Guess the Beat Saber song from an audio preview. A new song every day!">
-  <link rel="stylesheet" href="style.css?v=2.0.4">
+  <link rel="stylesheet" href="style.css?v=2.0.5">
 </head>
 <body>
  
@@ -13,12 +13,27 @@
     <div class="header-content">
       <h1 class="logo">🎵 Beatdle</h1>
       <div class="header-buttons">
-        <button id="mode-btn" class="icon-btn" aria-label="Change Mode">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="3"></circle>
-            <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24m-4.24 4.24l-4.24 4.24m13.08-4.24l-4.24-4.24m-4.24-4.24l-4.24-4.24"></path>
-          </svg>
-        </button>
+        <button id="mode-btn" class="icon-btn" aria-label="Change Game Mode">
+  <svg
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <!-- Center button -->
+    <circle cx="12" cy="12" r="2" />
+
+    <!-- D-pad -->
+    <line x1="12" y1="3" x2="12" y2="8" />
+    <line x1="12" y1="16" x2="12" y2="21" />
+    <line x1="3" y1="12" x2="8" y2="12" />
+    <line x1="16" y1="12" x2="21" y2="12" />
+  </svg>
+</button>
         <button id="stats-btn" class="icon-btn" aria-label="View Statistics">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 3v18h18"></path>
@@ -267,6 +282,6 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="main.js?v=2.0.4"></script>
+  <script src="main.js?v=2.0.5"></script>
 </body>
 </html>
