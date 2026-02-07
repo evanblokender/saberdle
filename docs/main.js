@@ -382,7 +382,7 @@ function endGame(won) {
     resultMessage.textContent = `🎉 Correct! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message win";
   } else {
-    resultMessage.textContent = `💀 Out of guesses! The song was: ${answerDisplay}`;
+    resultMessage.textContent = ` fuck you imagine being Out of guesses! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message lose";
   }
   
@@ -401,7 +401,7 @@ function shareResult() {
     return "⬛";
   }).join("");
   
-  const text = `Beatdle ${dailyDate}\n${squares}\nhttps://yoursite.com`;
+  const text = `Beatdle ${dailyDate}\n${squares}\nhttps://evanblokender.org/beatdle`;
   
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
