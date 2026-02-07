@@ -1,26 +1,11 @@
-import fs from "fs/promises";
+import fs from "fs";
 import fetch from "node-fetch";
-import path from "path";
-import { fileURLToPath } from "url";
 
-// Get __dirname in ESM
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Get day seed based on New York (Eastern Time)
 function getDaySeed() {
-  const now = new Date();
-  // Convert to New York time offset
-  const nyOffset = -5 * 60; // EST is UTC-5, ignoring DST
-  const nyTime = new Date(now.getTime() + (nyOffset - now.getTimezoneOffset()) * 60000);
-
-  const year = nyTime.getFullYear();
-  const month = nyTime.getMonth() + 1;
-  const date = nyTime.getDate();
-  return `${year}-${month}-${date}`;
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}-${d.getUTCDate()}`;
 }
 
-// Seeded random function
 function seededRandom(seed) {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) {
@@ -28,16 +13,21 @@ function seededRandom(seed) {
     h *= 16777619;
   }
   return () => {
-    h += h << 13;
-    h ^= h >> 7;
-    h += h << 3;
-    h ^= h >> 17;
+    h += h << 13; h ^= h >> 7;
+    h += h << 3; h ^= h >> 17;
     h += h << 5;
     return (h >>> 0) / 4294967296;
   };
 }
 
-// Pick a ranked map with preview
+function shuffleArray(array, rand) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 async function pickRankedMap() {
   const seed = getDaySeed();
   const rand = seededRandom(seed);
@@ -48,16 +38,17 @@ async function pickRankedMap() {
     const data = await res.json();
     if (!data.docs || data.docs.length === 0) continue;
 
-    const map = data.docs[Math.floor(rand() * data.docs.length)];
-    if (map && map.versions && map.versions.length > 0 && map.versions[0].previewURL) {
-      return map;
+    const shuffled = shuffleArray(data.docs, rand);
+    for (const map of shuffled) {
+      if (map && map.versions && map.versions.length > 0 && map.versions[0].previewURL) {
+        return map;
+      }
     }
   }
 
   throw new Error("No valid ranked map with preview found");
 }
 
-// Main function
 (async () => {
   try {
     const map = await pickRankedMap();
@@ -68,14 +59,8 @@ async function pickRankedMap() {
       previewURL: map.versions[0].previewURL
     };
 
-    const docsPath = path.join(__dirname, "docs");
-    try {
-      await fs.access(docsPath);
-    } catch {
-      await fs.mkdir(docsPath);
-    }
-
-    await fs.writeFile(path.join(docsPath, "data.json"), JSON.stringify(daily, null, 2), "utf-8");
+    if (!fs.existsSync("./docs")) fs.mkdirSync("./docs");
+    fs.writeFileSync("./docs/data.json", JSON.stringify(daily, null, 2));
     console.log("Daily map:", daily.songName);
   } catch (err) {
     console.error("Error generating daily map:", err);
