@@ -14,7 +14,7 @@ let infiniteSongs = [];
 let currentInfiniteSong = null;
 
 // Version for cache busting
-const APP_VERSION = "2.0.0";
+const APP_VERSION = "2.0.1";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -67,10 +67,57 @@ function init() {
 function checkVersion() {
   const savedVersion = localStorage.getItem("beatdle-version");
   if (savedVersion !== APP_VERSION) {
-    console.log("New version detected, clearing old cache");
-    // Don't clear stats, just update version
+    console.log("New version detected, migrating data");
+    
+    // Clear any game states in old format to prevent errors
+    // (Users will just need to replay today's daily if they already completed it)
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("beatdle-2") && !key.includes("stats")) {
+        const state = localStorage.getItem(key);
+        try {
+          const parsed = JSON.parse(state);
+          // Check if it's the old format (no migrated flag)
+          if (parsed && parsed.guesses && !parsed.migrated) {
+            console.log(`Clearing old format state: ${key}`);
+            localStorage.removeItem(key);
+          }
+        } catch (e) {
+          // Invalid state, remove it
+          localStorage.removeItem(key);
+        }
+      }
+    }
+    
+    // Update version
     localStorage.setItem("beatdle-version", APP_VERSION);
-    showToast("App updated to version " + APP_VERSION);
+    showToast("App updated! Old game states cleared.");
+  }
+}
+
+// Migrate old game state formats to new format
+function migrateOldGameStates() {
+  // Find all beatdle game states
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith("beatdle-") && key !== "beatdle-stats" && 
+        key !== "beatdle-theme" && key !== "beatdle-mode" && 
+        key !== "beatdle-version" && key !== "beatdle-infinite-score") {
+      try {
+        const state = JSON.parse(localStorage.getItem(key));
+        // Check if state needs migration (old format had text with emoji prefix)
+        if (state && state.guesses) {
+          // Mark as migrated if not already
+          if (!state.migrated) {
+            state.migrated = true;
+            localStorage.setItem(key, JSON.stringify(state));
+            console.log(`Migrated game state: ${key}`);
+          }
+        }
+      } catch (e) {
+        console.log(`Error migrating state ${key}:`, e);
+      }
+    }
   }
 }
 
@@ -232,13 +279,19 @@ function saveGameState() {
     date: dailyDate,
     attempts: attempts,
     previewTime: previewTime,
-    guesses: Array.from(guessesContainer.children).map(el => ({
-      text: el.querySelector('.guess-text').textContent,
-      type: el.classList.contains("correct") ? "correct" : 
-            el.classList.contains("skip") ? "skip" : "incorrect"
-    })),
+    guesses: Array.from(guessesContainer.children).map(el => {
+      // Handle both old format (text node) and new format (.guess-text element)
+      const textEl = el.querySelector('.guess-text');
+      const text = textEl ? textEl.textContent : el.textContent.substring(2); // Remove emoji prefix for old format
+      return {
+        text: text,
+        type: el.classList.contains("correct") ? "correct" : 
+              el.classList.contains("skip") ? "skip" : "incorrect"
+      };
+    }),
     completed: gameOver,
-    won: gameOver && resultMessage.classList.contains("win")
+    won: gameOver && resultMessage.classList.contains("win"),
+    migrated: true // Mark as new format
   };
   localStorage.setItem(key, JSON.stringify(state));
 }
@@ -550,7 +603,7 @@ function endGame(won) {
   gameOverDiv.classList.remove("hidden");
   
   if (won) {
-    resultMessage.textContent = `Correct! The song was: ${answerDisplay}`;
+    resultMessage.textContent = `🎉 Correct! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message win";
     
     // Update infinite score
@@ -560,7 +613,7 @@ function endGame(won) {
       updateInfiniteScoreDisplay();
     }
   } else {
-    resultMessage.textContent = `You failed! The song was: ${answerDisplay}`;
+    resultMessage.textContent = `😔 Sorry, you failed! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message lose";
   }
   
