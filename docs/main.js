@@ -2,7 +2,7 @@ let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
 
-const audio = document.getElementById("audio"); // hidden audio
+const audio = document.getElementById("audio"); 
 const playBtn = document.getElementById("play");
 const skipBtn = document.getElementById("skip");
 const progressBar = document.getElementById("progress-bar");
@@ -17,11 +17,32 @@ const answerDiv = document.getElementById("answer");
 let isPlaying = false;
 let previewInterval = null;
 let answer = "";
+let dailyKey = ""; // unique key for today
+
+// Cookie helpers
+function setCookie(name, value, days) {
+  const d = new Date();
+  d.setTime(d.getTime() + (days*24*60*60*1000));
+  document.cookie = `${name}=${value}; expires=${d.toUTCString()}; path=/`;
+}
+
+function getCookie(name) {
+  const c = document.cookie.split('; ').find(row => row.startsWith(name+'='));
+  return c ? c.split('=')[1] : null;
+}
 
 // load daily map
 async function loadDaily() {
   const d = await fetch("data.json").then(r => r.json());
   answer = d.songName.toLowerCase();
+  dailyKey = "beatdle-" + d.date;
+
+  // check if already completed today
+  if(getCookie(dailyKey)) {
+    disableGame("You already played today's Beatdle! Come back tomorrow.");
+    return;
+  }
+
   audio.src = d.previewURL;
   audio.currentTime = 0;
   durationEl.textContent = formatTime(previewTime);
@@ -30,19 +51,28 @@ async function loadDaily() {
 }
 loadDaily();
 
+function disableGame(msg) {
+  playBtn.disabled = true;
+  skipBtn.disabled = true;
+  guessInput.disabled = true;
+  answerDiv.textContent = msg;
+}
+
+// Format seconds
 function formatTime(sec) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// Play preview
 function playPreview() {
   if (isPlaying) return;
   audio.currentTime = 0;
   const playPromise = audio.play();
   if (playPromise !== undefined) {
     playPromise.catch(() => {
-      alert("Click the Play Preview button to start playback");
+      alert("Click Play Preview to start playback");
       return;
     });
   }
@@ -57,6 +87,7 @@ function playPreview() {
   }, 50);
 }
 
+// Stop preview
 function stopPreview() {
   audio.pause();
   isPlaying = false;
@@ -65,7 +96,7 @@ function stopPreview() {
   timeEl.textContent = formatTime(previewTime);
 }
 
-// events
+// Event listeners
 playBtn.onclick = playPreview;
 
 skipBtn.onclick = () => {
@@ -76,7 +107,7 @@ skipBtn.onclick = () => {
   playPreview();
 };
 
-// autocomplete
+// Autocomplete
 guessInput.oninput = async () => {
   results.innerHTML = "";
   const q = guessInput.value.trim();
@@ -93,6 +124,7 @@ guessInput.oninput = async () => {
   });
 };
 
+// Submit guess
 function submitGuess(text) {
   guessInput.value = "";
   results.innerHTML = "";
@@ -108,6 +140,7 @@ function submitGuess(text) {
   }
 }
 
+// Add guess to DOM
 function addGuess(text, correct) {
   const div = document.createElement("div");
   div.textContent = (correct ? "✅ " : "❌ ") + text;
@@ -118,16 +151,23 @@ function addGuess(text, correct) {
   guessesDiv.appendChild(div);
 }
 
+// Win
 function winGame() {
   answerDiv.textContent = `🎉 Correct! The song was: ${answer}`;
   shareBtn.hidden = false;
+  setCookie(dailyKey, "done", 1);
+  disableGame("You already played today's Beatdle! Come back tomorrow.");
 }
 
+// End
 function endGame() {
-  answerDiv.textContent = `💀 Out of guesses! The song was: ${answer}`;
+  answerDiv.textContent = `LMFAO HOW ARE YOU THIS BAD YOU ARE Out of guesses! The song was: ${answer}`;
   shareBtn.hidden = false;
+  setCookie(dailyKey, "done", 1);
+  disableGame("You already played today's Beatdle! Come back tomorrow.");
 }
 
+// Share
 shareBtn.onclick = () => {
   const squares = Array.from(guessesDiv.children)
     .map(d => d.textContent.includes("✅") ? "🟩" : "⬛")
