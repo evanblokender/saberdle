@@ -1,5 +1,4 @@
-import { setAudioSource, playPreview } from "./player.js";
-
+let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
 
@@ -10,30 +9,79 @@ const shareBtn = document.getElementById("share");
 const skipBtn = document.getElementById("skip");
 const answerDiv = document.getElementById("answer");
 
+const playBtn = document.getElementById("play");
+const progressBar = document.getElementById("progress-bar");
+const timeEl = document.getElementById("time");
+const durationEl = document.getElementById("duration");
+
+const audio = new Audio();
+let isPlaying = false;
+let previewInterval = null;
+
 let answer = "";
 
 // Load daily map
 async function loadDaily() {
   const d = await fetch("data.json").then(r=>r.json());
   answer = d.songName.toLowerCase();
-  setAudioSource(d.previewURL);
+  audio.src = d.previewURL;
+  audio.currentTime = 0;
+  durationEl.textContent = formatTime(previewTime);
+  timeEl.textContent = "0:00";
+  progressBar.style.width = "0%";
 }
 loadDaily();
 
+// Format seconds to mm:ss
+function formatTime(sec){
+  const m = Math.floor(sec/60);
+  const s = Math.floor(sec%60);
+  return `${m}:${s.toString().padStart(2,"0")}`;
+}
+
+// Play preview
+function playPreview(){
+  if(isPlaying) return;
+  audio.currentTime = 0;
+  audio.play();
+  isPlaying = true;
+
+  const start = Date.now();
+  previewInterval = setInterval(()=>{
+    const elapsed = (Date.now()-start)/1000;
+    const percent = Math.min(elapsed/previewTime*100,100);
+    progressBar.style.width = percent+"%";
+    timeEl.textContent = formatTime(elapsed);
+    if(elapsed>=previewTime) stopPreview();
+  },50);
+}
+
+// Stop preview
+function stopPreview(){
+  audio.pause();
+  isPlaying=false;
+  clearInterval(previewInterval);
+  progressBar.style.width="100%";
+  timeEl.textContent = formatTime(previewTime);
+}
+
+// Play button click
+playBtn.onclick = playPreview;
+
 // Skip button
-skipBtn.onclick = () => {
+skipBtn.onclick = ()=>{
   attempts++;
-  previewTime += 2;
+  previewTime+=2;
   addGuess("⏭ Skip", false);
-  if (attempts>=maxAttempts) endGame();
+  if(attempts>=maxAttempts) endGame();
   playPreview();
 };
 
 // Autocomplete search
-guessInput.oninput = async () => {
+guessInput.oninput = async ()=>{
   results.innerHTML="";
   const q = guessInput.value.trim();
-  if (q.length<2) return;
+  if(q.length<2) return;
 
   const data = await fetch(`https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(q)}&ranked=true`)
     .then(r=>r.json());
@@ -62,6 +110,7 @@ function submitGuess(text){
   }
 }
 
+// Add guess to DOM
 function addGuess(text, correct){
   const div = document.createElement("div");
   div.textContent = (correct?"✅ ":"❌ ")+text;
@@ -80,7 +129,7 @@ function winGame(){
 
 // End
 function endGame(){
-  answerDiv.textContent = `💀 YOUR SO ASS LMAO Out of guesses! The song was: ${answer}`;
+  answerDiv.textContent = `💀 LMFAO YOU ARE Out of guesses! The song was: ${answer}`;
   shareBtn.hidden=false;
 }
 
