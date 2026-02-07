@@ -1,7 +1,4 @@
-* {
-  box-sizing: border-box;
-}
-
+* { box-sizing: border-box; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -12,7 +9,6 @@ body {
   align-items: center;
   justify-content: center;
 }
-
 .card {
   width: 100%;
   max-width: 420px;
@@ -21,13 +17,7 @@ body {
   padding: 20px;
   box-shadow: 0 25px 70px rgba(0,0,0,0.6);
 }
-
-h1 {
-  text-align: center;
-  margin-top: 0;
-  margin-bottom: 16px;
-}
-
+h1 { text-align: center; margin-top:0; margin-bottom:16px; }
 button {
   width: 100%;
   padding: 12px;
@@ -39,11 +29,7 @@ button {
   font-size: 16px;
   cursor: pointer;
 }
-
-button:hover {
-  background: #7d6eff;
-}
-
+button:hover { background: #7d6eff; }
 input {
   width: 100%;
   padding: 12px;
@@ -52,36 +38,23 @@ input {
   border: none;
   font-size: 16px;
 }
-
 #results {
   margin-top: 6px;
   background: #1f1f38;
   border-radius: 10px;
   overflow: hidden;
 }
-
 #results div {
   padding: 10px;
   cursor: pointer;
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-
-#results div:hover {
-  background: #2a2a55;
-}
-
-#guesses {
-  margin-top: 12px;
-}
-
+#results div:hover { background: #2a2a55; }
+#guesses { margin-top: 12px; }
 #guesses div {
   padding: 8px;
   border-radius: 8px;
   margin-bottom: 6px;
   background: #1c1c33;
 }
-
-audio {
-  width: 100%;
-  margin-bottom: 6px;
-}
+audio { width: 100%; margin-bottom: 6px; }
