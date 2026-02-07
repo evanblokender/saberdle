@@ -441,6 +441,7 @@ function showToast(message) {
 // Modal Management
 function openModal(modal) {
   modal.classList.add("show");
+  document.body.classList.add("modal-open");
   if (modal === statsModal) {
     displayStats();
   }
@@ -448,6 +449,7 @@ function openModal(modal) {
 
 function closeModal(modal) {
   modal.classList.remove("show");
+  document.body.classList.remove("modal-open");
 }
 
 // Event Listeners
