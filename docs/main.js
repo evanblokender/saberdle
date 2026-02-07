@@ -248,8 +248,15 @@ async function loadDaily() {
     // Check if already played today
     const gameState = loadGameState();
     if (gameState && gameState.date === dailyDate && gameState.completed) {
-      restoreGameState(gameState);
-      return;
+      try {
+        restoreGameState(gameState);
+        return;
+      } catch (error) {
+        // Old format state that can't be restored - clear it and start fresh
+        console.log("Error restoring old game state, clearing...", error);
+        localStorage.removeItem(`beatdle-${dailyDate}`);
+        showToast("Old game state cleared. Please replay today's song!");
+      }
     }
     
     // Load audio
@@ -297,21 +304,27 @@ function saveGameState() {
 }
 
 function restoreGameState(state) {
-  attempts = state.attempts;
-  previewTime = state.previewTime;
-  gameOver = state.completed;
-  
-  // Restore guesses
-  state.guesses.forEach(guess => {
-    addGuess(guess.text, guess.type);
-  });
-  
-  // Update display
-  updateAttemptsDisplay();
-  updateTimeDisplay();
-  
-  if (state.completed) {
-    endGame(state.won);
+  try {
+    attempts = state.attempts;
+    previewTime = state.previewTime;
+    gameOver = state.completed;
+    
+    // Restore guesses
+    state.guesses.forEach(guess => {
+      addGuess(guess.text, guess.type);
+    });
+    
+    // Update display
+    updateAttemptsDisplay();
+    updateTimeDisplay();
+    
+    if (state.completed) {
+      endGame(state.won);
+    }
+  } catch (error) {
+    console.error("Error restoring game state:", error);
+    // Re-throw to be caught by loadDaily
+    throw error;
   }
 }
 
