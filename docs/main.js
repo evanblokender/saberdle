@@ -8,6 +8,13 @@ let answer = "";
 let answerDisplay = "";
 let dailyDate = "";
 let gameOver = false;
+let gameMode = "daily"; // "daily" or "infinite"
+let infiniteScore = 0;
+let infiniteSongs = [];
+let currentInfiniteSong = null;
+
+// Version for cache busting
+const APP_VERSION = "2.0.0";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -26,6 +33,9 @@ const countdownEl = document.getElementById("countdown");
 const attemptsCount = document.getElementById("attempts-count");
 const previewTimeDisplay = document.getElementById("preview-time");
 const visualizer = document.querySelector(".visualizer");
+const modeBtn = document.getElementById("mode-btn");
+const resetBtn = document.getElementById("reset-btn");
+const infiniteScoreEl = document.getElementById("infinite-score");
 
 // Modal Elements
 const helpBtn = document.getElementById("help-btn");
@@ -33,17 +43,136 @@ const statsBtn = document.getElementById("stats-btn");
 const themeBtn = document.getElementById("theme-btn");
 const helpModal = document.getElementById("help-modal");
 const statsModal = document.getElementById("stats-modal");
+const modeModal = document.getElementById("mode-modal");
 const toast = document.getElementById("toast");
 
 // Initialize
 init();
 
 function init() {
+  checkVersion();
   loadTheme();
-  loadDaily();
+  loadGameMode();
+  if (gameMode === "daily") {
+    loadDaily();
+  } else {
+    loadInfiniteMode();
+  }
   setupEventListeners();
   updateCountdown();
   setInterval(updateCountdown, 1000);
+}
+
+// Version Management (Cache Busting)
+function checkVersion() {
+  const savedVersion = localStorage.getItem("beatdle-version");
+  if (savedVersion !== APP_VERSION) {
+    console.log("New version detected, clearing old cache");
+    // Don't clear stats, just update version
+    localStorage.setItem("beatdle-version", APP_VERSION);
+    showToast("App updated to version " + APP_VERSION);
+  }
+}
+
+// Game Mode Management
+function loadGameMode() {
+  const savedMode = localStorage.getItem("beatdle-mode");
+  if (savedMode) {
+    gameMode = savedMode;
+  }
+  updateModeDisplay();
+}
+
+function saveGameMode() {
+  localStorage.setItem("beatdle-mode", gameMode);
+}
+
+function updateModeDisplay() {
+  const modeIndicator = document.getElementById("mode-indicator");
+  if (modeIndicator) {
+    modeIndicator.textContent = gameMode === "daily" ? "Daily Mode" : "Infinite Mode";
+  }
+  
+  // Show/hide mode-specific elements
+  if (gameMode === "infinite") {
+    document.getElementById("countdown").parentElement.style.display = "none";
+    document.getElementById("infinite-score-container").style.display = "block";
+    updateInfiniteScoreDisplay();
+  } else {
+    document.getElementById("countdown").parentElement.style.display = "block";
+    document.getElementById("infinite-score-container").style.display = "none";
+  }
+}
+
+function switchMode(newMode) {
+  if (gameMode === newMode) return;
+  
+  gameMode = newMode;
+  saveGameMode();
+  
+  // Reset game state
+  resetGame();
+  
+  if (gameMode === "daily") {
+    loadDaily();
+  } else {
+    loadInfiniteMode();
+  }
+  
+  updateModeDisplay();
+  closeModal(modeModal);
+  showToast(`Switched to ${gameMode === "daily" ? "Daily" : "Infinite"} Mode`);
+}
+
+// Infinite Mode
+async function loadInfiniteMode() {
+  try {
+    // Load random ranked song from BeatSaver
+    const response = await fetch(
+      `https://api.beatsaver.com/search/text/0?sortOrder=Relevance&ranked=true`
+    );
+    const data = await response.json();
+    
+    if (data.docs && data.docs.length > 0) {
+      // Get random song from results
+      const randomSong = data.docs[Math.floor(Math.random() * data.docs.length)];
+      currentInfiniteSong = randomSong;
+      
+      answer = randomSong.metadata.songName.toLowerCase().trim();
+      answerDisplay = randomSong.metadata.songName;
+      
+      // Load preview URL
+      if (randomSong.versions && randomSong.versions.length > 0) {
+        const previewURL = randomSong.versions[0].previewURL;
+        audio.src = previewURL;
+        audio.currentTime = 0;
+        updateTimeDisplay();
+      }
+      
+      // Load infinite score
+      const savedScore = localStorage.getItem("beatdle-infinite-score");
+      infiniteScore = savedScore ? parseInt(savedScore) : 0;
+      updateInfiniteScoreDisplay();
+    }
+  } catch (error) {
+    console.error("Failed to load infinite mode song:", error);
+    showToast("Failed to load song. Please try again.");
+  }
+}
+
+function updateInfiniteScoreDisplay() {
+  if (infiniteScoreEl) {
+    infiniteScoreEl.textContent = infiniteScore;
+  }
+}
+
+function saveInfiniteScore() {
+  localStorage.setItem("beatdle-infinite-score", infiniteScore.toString());
+}
+
+function nextInfiniteSong() {
+  resetGame();
+  loadInfiniteMode();
 }
 
 // Theme Management
@@ -63,7 +192,8 @@ function toggleTheme() {
 // Load Daily Song
 async function loadDaily() {
   try {
-    const data = await fetch("data.json").then(r => r.json());
+    const cacheBuster = `?v=${Date.now()}`;
+    const data = await fetch(`data.json${cacheBuster}`).then(r => r.json());
     answer = data.songName.toLowerCase().trim();
     answerDisplay = data.songName;
     dailyDate = data.date;
@@ -87,19 +217,23 @@ async function loadDaily() {
 
 // Game State Management
 function loadGameState() {
+  if (gameMode === "infinite") return null;
+  
   const key = `beatdle-${dailyDate}`;
   const saved = localStorage.getItem(key);
   return saved ? JSON.parse(saved) : null;
 }
 
 function saveGameState() {
+  if (gameMode === "infinite") return; // Don't save state in infinite mode
+  
   const key = `beatdle-${dailyDate}`;
   const state = {
     date: dailyDate,
     attempts: attempts,
     previewTime: previewTime,
     guesses: Array.from(guessesContainer.children).map(el => ({
-      text: el.textContent.substring(2), // Remove emoji
+      text: el.querySelector('.guess-text').textContent,
       type: el.classList.contains("correct") ? "correct" : 
             el.classList.contains("skip") ? "skip" : "incorrect"
     })),
@@ -135,26 +269,34 @@ function loadStats() {
     wins: 0,
     currentStreak: 0,
     maxStreak: 0,
-    distribution: [0, 0, 0, 0, 0, 0]
+    distribution: [0, 0, 0, 0, 0, 0],
+    lastPlayedDate: null
   };
   const saved = localStorage.getItem("beatdle-stats");
   return saved ? JSON.parse(saved) : defaultStats;
 }
 
 function saveStats(won, guessCount) {
+  if (gameMode === "infinite") return; // Don't save stats in infinite mode
+  
   const stats = loadStats();
-  stats.played++;
   
-  if (won) {
-    stats.wins++;
-    stats.currentStreak++;
-    stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
-    stats.distribution[guessCount - 1]++;
-  } else {
-    stats.currentStreak = 0;
+  // Check if this is a new day (don't increment multiple times for same day)
+  if (stats.lastPlayedDate !== dailyDate) {
+    stats.played++;
+    stats.lastPlayedDate = dailyDate;
+    
+    if (won) {
+      stats.wins++;
+      stats.currentStreak++;
+      stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+      stats.distribution[guessCount - 1]++;
+    } else {
+      stats.currentStreak = 0;
+    }
+    
+    localStorage.setItem("beatdle-stats", JSON.stringify(stats));
   }
-  
-  localStorage.setItem("beatdle-stats", JSON.stringify(stats));
 }
 
 function displayStats() {
@@ -190,6 +332,34 @@ function displayStats() {
     bar.appendChild(fill);
     distributionEl.appendChild(bar);
   });
+}
+
+// Reset Game
+function resetGame() {
+  attempts = 0;
+  previewTime = 3;
+  gameOver = false;
+  isPlaying = false;
+  
+  // Clear guesses
+  guessesContainer.innerHTML = "";
+  
+  // Re-enable inputs
+  playBtn.disabled = false;
+  skipBtn.disabled = false;
+  guessInput.disabled = false;
+  guessInput.value = "";
+  
+  // Hide game over
+  gameOverDiv.classList.add("hidden");
+  
+  // Reset displays
+  updateAttemptsDisplay();
+  updateTimeDisplay();
+  
+  // Reset progress bar
+  progressBar.style.width = "0%";
+  currentTimeEl.textContent = "0:00";
 }
 
 // Time Formatting
@@ -359,6 +529,7 @@ function addGuess(text, type) {
   icon.textContent = type === "correct" ? "✓" : type === "skip" ? "⏭" : "✗";
   
   const label = document.createElement("span");
+  label.className = "guess-text";
   label.textContent = text;
   
   guess.appendChild(icon);
@@ -379,17 +550,33 @@ function endGame(won) {
   gameOverDiv.classList.remove("hidden");
   
   if (won) {
-    resultMessage.textContent = `🎉 Correct! The song was: ${answerDisplay}`;
+    resultMessage.textContent = `Correct! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message win";
+    
+    // Update infinite score
+    if (gameMode === "infinite") {
+      infiniteScore++;
+      saveInfiniteScore();
+      updateInfiniteScoreDisplay();
+    }
   } else {
-    resultMessage.textContent = ` fuck you imagine being Out of guesses! The song was: ${answerDisplay}`;
+    resultMessage.textContent = `You failed! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message lose";
   }
   
-  // Update stats
-  const guessCount = won ? attempts : maxAttempts;
-  saveStats(won, guessCount);
-  saveGameState();
+  // Update stats (daily mode only)
+  if (gameMode === "daily") {
+    const guessCount = won ? attempts : maxAttempts;
+    saveStats(won, guessCount);
+    saveGameState();
+  }
+  
+  // Show reset button in infinite mode
+  if (gameMode === "infinite") {
+    resetBtn.style.display = "block";
+  } else {
+    resetBtn.style.display = "none";
+  }
 }
 
 // Share Result
@@ -401,7 +588,12 @@ function shareResult() {
     return "⬛";
   }).join("");
   
-  const text = `Beatdle ${dailyDate}\n${squares}\nhttps://evanblokender.org/saberdle`;
+  let text;
+  if (gameMode === "infinite") {
+    text = `Beatdle Infinite Mode\nScore: ${infiniteScore}\n${squares}\nhttps://evanblokender.org/saberdle`;
+  } else {
+    text = `Beatdle ${dailyDate}\n${squares}\nhttps://evanblokender.org/saberdle`;
+  }
   
   if (navigator.clipboard) {
     navigator.clipboard.writeText(text).then(() => {
@@ -479,6 +671,26 @@ function setupEventListeners() {
   // Share
   shareBtn.addEventListener("click", shareResult);
   
+  // Mode switching
+  if (modeBtn) {
+    modeBtn.addEventListener("click", () => openModal(modeModal));
+  }
+  
+  // Reset button (infinite mode)
+  if (resetBtn) {
+    resetBtn.addEventListener("click", () => {
+      nextInfiniteSong();
+    });
+  }
+  
+  // Mode selection buttons
+  document.querySelectorAll(".mode-option").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      const mode = e.currentTarget.dataset.mode;
+      switchMode(mode);
+    });
+  });
+  
   // Modals
   helpBtn.addEventListener("click", () => openModal(helpModal));
   statsBtn.addEventListener("click", () => openModal(statsModal));
@@ -506,6 +718,7 @@ function setupEventListeners() {
     if (e.key === "Escape") {
       closeModal(helpModal);
       closeModal(statsModal);
+      closeModal(modeModal);
     }
   });
 }
