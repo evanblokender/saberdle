@@ -9,8 +9,11 @@ class AntiCheat {
     this.checkInterval = null;
     this.encryptionKey = this.generateKey();
     this.executionPaused = false;
-    this.aggressiveActive = false; // Only activate when DevTools detected
-    this.debuggerSpamInterval = null;
+    this.aggressiveActive = false;
+    this.debuggerSpamIntervals = [];
+    
+    // Protected storage for game data
+    this._protectedData = new Map();
     
     this.init();
   }
@@ -24,6 +27,9 @@ class AntiCheat {
       return;
     }
     
+    // FIRST - Protect global scope immediately
+    this.protectGlobalScope();
+    
     // Block context menu immediately
     this.blockContextMenu();
     
@@ -33,8 +39,126 @@ class AntiCheat {
     // Monitor for common cheating attempts
     this.preventDebugger();
     
-    // DON'T start aggressive measures until DevTools detected
-    // This prevents lag for normal users
+    // Protect window and document objects
+    this.lockDownDOM();
+  }
+  
+  // CRITICAL: Protect global scope from console access
+  protectGlobalScope() {
+    // Freeze Object prototype to prevent prototype pollution
+    Object.freeze(Object.prototype);
+    
+    // Override window property access
+    const originalDefineProperty = Object.defineProperty;
+    
+    // List of protected variable names that should be hidden
+    const protectedNames = ['answer', 'correctAnswer', 'solution', 'gameData', 'songData', 'trackData'];
+    
+    // Intercept all property definitions on window
+    Object.defineProperty = function(obj, prop, descriptor) {
+      // Block access to protected properties
+      if (obj === window && protectedNames.some(name => prop.toLowerCase().includes(name.toLowerCase()))) {
+        console.error('🚫 ANTI-CHEAT: Access denied');
+        return obj;
+      }
+      return originalDefineProperty.call(this, obj, prop, descriptor);
+    };
+    
+    // Override console to block answer access
+    this.protectConsoleFromStart();
+  }
+  
+  // Protect console BEFORE DevTools detection
+  protectConsoleFromStart() {
+    const self = this;
+    const protectedNames = ['answer', 'correctAnswer', 'solution', 'gameData', 'songData', 'trackData'];
+    
+    // Store original console methods
+    const originalLog = console.log;
+    const originalDir = console.dir;
+    const originalTable = console.table;
+    
+    // Override console.log to filter protected data
+    console.log = function(...args) {
+      // Check if any arg is trying to access protected data
+      const filtered = args.map(arg => {
+        if (typeof arg === 'object' && arg !== null) {
+          // Check if object has protected properties
+          for (let key in arg) {
+            if (protectedNames.some(name => key.toLowerCase().includes(name.toLowerCase()))) {
+              return '🚫 [PROTECTED DATA]';
+            }
+          }
+        }
+        if (typeof arg === 'string' && protectedNames.some(name => arg.toLowerCase().includes(name.toLowerCase()))) {
+          return '🚫 [PROTECTED DATA]';
+        }
+        return arg;
+      });
+      return originalLog.apply(console, filtered);
+    };
+    
+    // Override console.dir
+    console.dir = function(obj) {
+      if (typeof obj === 'object' && obj !== null) {
+        for (let key in obj) {
+          if (protectedNames.some(name => key.toLowerCase().includes(name.toLowerCase()))) {
+            console.log('🚫 ANTI-CHEAT: Cannot inspect protected data');
+            return;
+          }
+        }
+      }
+      return originalDir.call(console, obj);
+    };
+    
+    // Override console.table
+    console.table = function(data) {
+      console.log('🚫 ANTI-CHEAT: console.table disabled');
+      return;
+    };
+  }
+  
+  // Lock down DOM to prevent inspection
+  lockDownDOM() {
+    // Prevent access to document.querySelector for protected elements
+    const originalQuerySelector = document.querySelector;
+    const originalQuerySelectorAll = document.querySelectorAll;
+    
+    document.querySelector = function(selector) {
+      if (selector.includes('answer') || selector.includes('data-answer')) {
+        console.error('🚫 ANTI-CHEAT: Blocked selector');
+        return null;
+      }
+      return originalQuerySelector.call(document, selector);
+    };
+    
+    document.querySelectorAll = function(selector) {
+      if (selector.includes('answer') || selector.includes('data-answer')) {
+        console.error('🚫 ANTI-CHEAT: Blocked selector');
+        return [];
+      }
+      return originalQuerySelectorAll.call(document, selector);
+    };
+  }
+  
+  // Store protected data (use this instead of global variables)
+  setProtectedData(key, value) {
+    // Encrypt the value
+    const encrypted = this.encrypt(JSON.stringify(value));
+    this._protectedData.set(key, encrypted);
+  }
+  
+  // Retrieve protected data
+  getProtectedData(key) {
+    const encrypted = this._protectedData.get(key);
+    if (!encrypted) return null;
+    
+    try {
+      const decrypted = this.decrypt(encrypted);
+      return JSON.parse(decrypted);
+    } catch (e) {
+      return null;
+    }
   }
   
   // Block right-click context menu
@@ -47,77 +171,119 @@ class AntiCheat {
   
   // Start aggressive measures ONLY when DevTools detected
   activateAggressiveMeasures() {
-    if (this.aggressiveActive) return; // Already active
+    if (this.aggressiveActive) return;
     this.aggressiveActive = true;
     
     console.log('DevTools detected - activating aggressive anti-cheat');
     
-    // Now start the spam and scrambling
     this.startConsoleSpam();
-    this.protectConsole();
+    this.protectConsoleAggressive();
     this.scrambleDOM();
     this.pauseExecution();
-    this.spamDebugger(); // NEW: Aggressive debugger spam
+    this.spamDebugger();
   }
   
-  // NEW: Spam debugger statements to freeze DevTools
+  // Spam debugger statements to freeze DevTools
   spamDebugger() {
-    // Clear any existing interval
-    if (this.debuggerSpamInterval) {
-      clearInterval(this.debuggerSpamInterval);
+    // Create multiple aggressive debugger intervals
+    const createDebuggerSpam = () => {
+      const interval = setInterval(() => {
+        if (!this.aggressiveActive) {
+          clearInterval(interval);
+          return;
+        }
+        debugger;
+      }, 1);
+      this.debuggerSpamIntervals.push(interval);
+    };
+    
+    // Create 10 parallel debugger spam intervals
+    for (let i = 0; i < 10; i++) {
+      createDebuggerSpam();
     }
     
-    // Spam debugger statements every 1ms when DevTools is open
-    // This will keep pausing execution and jumping to this line
-    this.debuggerSpamInterval = setInterval(() => {
-      debugger; // This line will be hit constantly
-      debugger; // Multiple debuggers for extra annoyance
-      debugger;
-      debugger;
-      debugger;
-    }, 1);
-    
-    // Also create immediate recursive debugger spam
+    // Recursive immediate debugger
     const recursiveDebugger = () => {
-      if (this.aggressiveActive) {
-        debugger;
-        setTimeout(recursiveDebugger, 0);
-      }
+      if (!this.aggressiveActive) return;
+      debugger;
+      debugger;
+      debugger;
+      Promise.resolve().then(recursiveDebugger);
     };
     recursiveDebugger();
     
-    // Create multiple parallel debugger loops
-    for (let i = 0; i < 5; i++) {
-      setInterval(() => {
-        if (this.aggressiveActive) {
-          debugger;
-        }
-      }, 1);
-    }
+    // Also use requestAnimationFrame for continuous spam
+    const rafDebugger = () => {
+      if (!this.aggressiveActive) return;
+      debugger;
+      requestAnimationFrame(rafDebugger);
+    };
+    rafDebugger();
   }
   
   // Aggressively spam console and clear it
   startConsoleSpam() {
-    // Reduced from 1ms to 100ms to reduce lag
     setInterval(() => {
-      for (let i = 0; i < 50; i++) {
+      if (!this.aggressiveActive) return;
+      
+      for (let i = 0; i < 100; i++) {
         console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
       }
       console.clear();
-    }, 100);
+    }, 50);
+  }
+  
+  // Aggressive console protection when DevTools detected
+  protectConsoleAggressive() {
+    // Override ALL console methods
+    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug', 'group', 'groupEnd', 'groupCollapsed'];
     
-    // Override window eval to prevent code execution
-    window.eval = function() {
-      console.log('%c🚫 ANTI-CHEAT: eval() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      debugger; // Freeze on eval attempt
-      return null;
+    methods.forEach(method => {
+      console[method] = function() {
+        debugger;
+        for (let i = 0; i < 50; i++) {
+          console.clear();
+        }
+        return undefined;
+      };
+    });
+    
+    // Block eval
+    window.eval = new Proxy(window.eval, {
+      apply: function() {
+        debugger;
+        console.error('🚫 ANTI-CHEAT: eval() BLOCKED');
+        return null;
+      }
+    });
+    
+    // Block Function constructor
+    window.Function = new Proxy(window.Function, {
+      construct: function() {
+        debugger;
+        console.error('🚫 ANTI-CHEAT: Function() BLOCKED');
+        return function() {};
+      }
+    });
+    
+    // Block setTimeout/setInterval with string code
+    const originalSetTimeout = window.setTimeout;
+    const originalSetInterval = window.setInterval;
+    
+    window.setTimeout = function(code, ...args) {
+      if (typeof code === 'string') {
+        debugger;
+        return null;
+      }
+      return originalSetTimeout.call(window, code, ...args);
     };
     
-    // Override Function constructor
-    window.Function = function() {
-      console.log('%c🚫 ANTI-CHEAT: Function() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      debugger; // Freeze on Function attempt
-      return function() {};
+    window.setInterval = function(code, ...args) {
+      if (typeof code === 'string') {
+        debugger;
+        return null;
+      }
+      return originalSetInterval.call(window, code, ...args);
     };
   }
   
@@ -126,18 +292,19 @@ class AntiCheat {
   // Posted by Diego Fortes, modified by community
   // Retrieved 2026-02-07, License - CC BY-SA 4.0
   scrambleDOM() {
-    // Reduced from 5ms to 500ms to reduce lag
     setInterval(() => {
+      if (!this.aggressiveActive) return;
+      
       var $all = document.querySelectorAll("*");
       for (var each of $all) {
-        each.classList.add(`asdjaljsdliasud8ausdijaisdluasdjasildahjdsk${Math.random()}`);
+        each.classList.add(`x${Math.random().toString(36).substr(2, 9)}`);
       }
-    }, 500);
+    }, 100);
   }
   
   // Generate encryption key from session
   generateKey() {
-    const seed = Date.now().toString() + navigator.userAgent;
+    const seed = Date.now().toString() + navigator.userAgent + Math.random();
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
       const char = seed.charCodeAt(i);
@@ -155,7 +322,7 @@ class AntiCheat {
       const keyChar = this.encryptionKey.charCodeAt(i % this.encryptionKey.length);
       result += String.fromCharCode(charCode ^ keyChar);
     }
-    return btoa(result); // Base64 encode
+    return btoa(result);
   }
   
   decrypt(encrypted) {
@@ -169,128 +336,100 @@ class AntiCheat {
     return result;
   }
   
-  // Encrypt JSON data for network protection
-  encryptJSON(obj) {
-    const jsonString = JSON.stringify(obj);
-    return this.encrypt(jsonString);
-  }
-  
-  // Decrypt JSON data
-  decryptJSON(encrypted) {
-    const jsonString = this.decrypt(encrypted);
-    return JSON.parse(jsonString);
-  }
-  
   // Multiple methods to detect DevTools
   startDevToolsDetection() {
     // Method 1: Console detection via element inspection
-    // This only triggers when console is ACTUALLY open and inspecting objects
     const element = new Image();
     let consoleOpenCount = 0;
     
     Object.defineProperty(element, 'id', {
       get: () => {
         consoleOpenCount++;
-        // Only mark as detected after multiple triggers to avoid false positives
         if (consoleOpenCount > 2) {
           this.devToolsOpen = true;
           this.devToolsDetected = true;
-          this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
+          this.activateAggressiveMeasures();
         }
         return 'devtools-check';
       }
     });
     
-    // Trigger the getter periodically (lightweight check)
     this.checkInterval = setInterval(() => {
       console.log('%c', element);
       console.clear();
     }, 1000);
     
-    // Method 2: Window size detection (more conservative thresholds)
+    // Method 2: Window size detection
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
     
-    // Method 3: Performance timing detection
-    this.checkPerformanceTiming();
+    // Method 3: debugger timing detection
+    this.checkDebuggerTiming();
+    
+    // Method 4: toString detection
+    this.toStringDetection();
   }
   
   checkWindowSize() {
-    // More conservative thresholds to avoid false positives
     const widthThreshold = window.outerWidth - window.innerWidth > 200;
     const heightThreshold = window.outerHeight - window.innerHeight > 200;
     
-    // Only flag if BOTH conditions are suspicious
     if (widthThreshold && heightThreshold) {
       this.devToolsOpen = true;
       this.devToolsDetected = true;
-      this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
+      this.activateAggressiveMeasures();
     }
   }
   
-  // Check if debugger pauses execution (DevTools must be open)
-  checkPerformanceTiming() {
+  checkDebuggerTiming() {
     setInterval(() => {
       const start = performance.now();
-      debugger; // This will only pause if DevTools is open
+      // This debugger only runs during detection, not spam
+      if (!this.aggressiveActive) {
+        debugger;
+      }
       const end = performance.now();
       
-      // If this took more than 100ms, DevTools is open and paused execution
       if (end - start > 100) {
         this.devToolsOpen = true;
         this.devToolsDetected = true;
         this.activateAggressiveMeasures();
       }
+    }, 2000);
+  }
+  
+  toStringDetection() {
+    const div = document.createElement('div');
+    Object.defineProperty(div, 'id', {
+      get: () => {
+        this.devToolsOpen = true;
+        this.devToolsDetected = true;
+        this.activateAggressiveMeasures();
+        return 'detection';
+      }
+    });
+    
+    setInterval(() => {
+      console.log(div);
+      console.clear();
     }, 1000);
   }
   
-  // Pause execution to prevent data.json fetching
   pauseExecution() {
-    if (this.executionPaused) return; // Already paused
+    if (this.executionPaused) return;
     this.executionPaused = true;
-    
-    // Start DOM scrambling
-    this.scrambleDOM();
     
     console.log('%c🚫 DevTools detected - you will be banned if you submit a guess 🚫', 
                 'color: red; font-size: 24px; font-weight: bold;');
   }
   
-  // Protect console from being used (only when DevTools detected)
-  protectConsole() {
-    // Override all console methods to spam anti-cheat messages
-    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug'];
-    
-    methods.forEach(method => {
-      const original = console[method];
-      console[method] = (...args) => {
-        // Spam anti-cheat messages (reduced amount)
-        for (let i = 0; i < 20; i++) {
-          original.call(console, '%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-        }
-        console.clear();
-        
-        // Trigger debugger on console use
-        debugger;
-        
-        return original.apply(console, args);
-      };
-    });
-  }
-  
   preventDebugger() {
-    // Detect F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
     document.addEventListener('keydown', (e) => {
-      // F12
       if (e.key === 'F12' ||
           e.keyCode === 123 ||
-          // Ctrl+Shift+I (Inspect)
           (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
-          // Ctrl+Shift+J (Console)
           (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
-          // Ctrl+Shift+C (Inspect element)
           (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
-          // Ctrl+U (View source)
           (e.ctrlKey && e.keyCode === 85)) {
         e.preventDefault();
         e.stopPropagation();
@@ -301,7 +440,6 @@ class AntiCheat {
     });
   }
   
-  // Check if user is banned
   checkBanStatus() {
     const banData = this.getCookie('beatdle_ban');
     if (banData) {
@@ -309,7 +447,6 @@ class AntiCheat {
         const data = JSON.parse(atob(banData));
         this.bannedUntil = new Date(data.until);
       } catch (e) {
-        // Invalid ban cookie, remove it
         this.deleteCookie('beatdle_ban');
       }
     }
@@ -322,17 +459,15 @@ class AntiCheat {
     if (now < this.bannedUntil) {
       return true;
     } else {
-      // Ban expired
       this.deleteCookie('beatdle_ban');
       this.bannedUntil = null;
       return false;
     }
   }
   
-  // Ban the user (7 days)
   banUser() {
     const banUntil = new Date();
-    banUntil.setDate(banUntil.getDate() + 7); // 7 day ban
+    banUntil.setDate(banUntil.getDate() + 7);
     
     const banData = {
       until: banUntil.toISOString(),
@@ -344,7 +479,6 @@ class AntiCheat {
     this.showBanScreen();
   }
   
-  // Show ban screen
   showBanScreen() {
     document.body.innerHTML = `
       <div style="
@@ -386,20 +520,17 @@ class AntiCheat {
       </div>
     `;
     
-    // Prevent any interaction
     document.body.style.overflow = 'hidden';
   }
   
-  // Check on guess submission
   checkOnGuess() {
     if (this.devToolsDetected) {
       this.banUser();
-      return false; // Block the guess
+      return false;
     }
-    return true; // Allow the guess
+    return true;
   }
   
-  // Cookie helpers
   setCookie(name, value, days) {
     const expires = new Date();
     expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
@@ -421,17 +552,19 @@ class AntiCheat {
     document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
   }
   
-  // Clean up
   destroy() {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
     }
-    if (this.debuggerSpamInterval) {
-      clearInterval(this.debuggerSpamInterval);
-    }
+    this.debuggerSpamIntervals.forEach(interval => clearInterval(interval));
     this.aggressiveActive = false;
   }
 }
 
 // Initialize anti-cheat globally
 window.antiCheat = new AntiCheat();
+
+// IMPORTANT: Usage example to protect your answer variable
+// Instead of: let answer = "Song Name";
+// Use: window.antiCheat.setProtectedData('answer', "Song Name");
+// To retrieve: window.antiCheat.getProtectedData('answer');
