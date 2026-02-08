@@ -1,6 +1,6 @@
 // Leaderboard API Configuration
 // IMPORTANT: Replace this with your Render API URL after deployment
-const LEADERBOARD_API_URL = 'https://your-app-name.onrender.com';
+const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
 
 // Leaderboard State
 let leaderboardData = [];
