@@ -1,10 +1,11 @@
 class AntiCheat {
   constructor() {
     this.devToolsOpen = false;
-    this.devToolsStrongEvidence = false;   // only this triggers ban potential
+    this.devToolsStrongEvidence = false;
     this.bannedUntil = null;
     this.fingerprint = this.generateSimpleFingerprint();
     this.guessSubmittedThisSession = false;
+    this.consoleWarningShown = false;
     this.init();
   }
 
@@ -19,10 +20,10 @@ class AntiCheat {
     this.blockContextMenu();
     this.blockDevToolsShortcuts();
     this.startDevToolsDetection();
+    this.monitorConsole();
   }
 
   generateSimpleFingerprint() {
-    // Very basic but stable enough to survive cookie clear
     const parts = [
       navigator.userAgent,
       screen.width + '×' + screen.height,
@@ -30,6 +31,19 @@ class AntiCheat {
       navigator.language || 'en'
     ];
     return btoa(parts.join('|')).slice(0, 32);
+  }
+
+  // Add the missing encrypt method
+  encrypt(data) {
+    return btoa(JSON.stringify(data));
+  }
+
+  decrypt(data) {
+    try {
+      return JSON.parse(atob(data));
+    } catch {
+      return null;
+    }
   }
 
   blockContextMenu() {
@@ -54,49 +68,88 @@ class AntiCheat {
   }
 
   startDevToolsDetection() {
-    // Only reliable method left — size difference
+    // More aggressive detection
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
-
-    // Periodic check in case window properties change later
-    setInterval(() => this.checkWindowSize(), 3000);
+    
+    // Check more frequently
+    setInterval(() => {
+      this.checkWindowSize();
+      this.checkDevToolsDebugger();
+    }, 1000);
   }
 
   checkWindowSize() {
     const wDiff = window.outerWidth - window.innerWidth;
     const hDiff = window.outerHeight - window.innerHeight;
 
-    // Very conservative thresholds — requires quite obvious docking
+    // More sensitive thresholds
     if (
-      (wDiff > 350 && hDiff > 200) ||
-      (hDiff > 350 && wDiff > 200) ||
-      (wDiff > 500 || hDiff > 500)
+      (wDiff > 200 || hDiff > 200)
     ) {
       this.devToolsOpen = true;
       this.devToolsStrongEvidence = true;
     }
   }
 
-  // Call this when the player submits a guess
+  checkDevToolsDebugger() {
+    // This will pause if DevTools is open
+    const start = performance.now();
+    debugger; // Will pause execution if DevTools open
+    const end = performance.now();
+    
+    // If execution took >100ms, DevTools likely open
+    if (end - start > 100) {
+      this.devToolsOpen = true;
+      this.devToolsStrongEvidence = true;
+    }
+  }
+
+  monitorConsole() {
+    // Override console methods to detect usage
+    const original = {
+      log: console.log,
+      warn: console.warn,
+      error: console.error,
+      dir: console.dir
+    };
+
+    const self = this;
+
+    ['log', 'warn', 'error', 'dir'].forEach(method => {
+      console[method] = function(...args) {
+        self.devToolsOpen = true;
+        self.devToolsStrongEvidence = true;
+        
+        if (!self.consoleWarningShown) {
+          self.consoleWarningShown = true;
+          original.warn('⚠️ Console usage detected. DevTools usage may result in a ban.');
+        }
+        
+        return original[method].apply(console, args);
+      };
+    });
+  }
+
   onGuessSubmitted() {
     this.guessSubmittedThisSession = true;
 
     if (this.devToolsStrongEvidence) {
       this.banUser();
-      return false; // block the guess submission
+      return false;
     }
 
-    return true; // allow guess
+    return true;
   }
 
   checkBanStatus() {
     let banData = this.getCookie('beat_ban') || localStorage.getItem('beat_ban_fp_' + this.fingerprint);
 
     if (banData) {
-      try {
-        const parsed = JSON.parse(atob(banData));
+      const parsed = this.decrypt(banData);
+      if (parsed) {
         this.bannedUntil = new Date(parsed.until);
-      } catch {
+      } else {
         this.clearBanData();
       }
     }
@@ -119,7 +172,7 @@ class AntiCheat {
       fp: this.fingerprint
     };
 
-    const encoded = btoa(JSON.stringify(data));
+    const encoded = this.encrypt(data);
 
     this.setCookie('beat_ban', encoded, 7);
     localStorage.setItem('beat_ban_fp_' + this.fingerprint, encoded);
@@ -155,10 +208,6 @@ class AntiCheat {
     document.body.style.overflow = 'hidden';
   }
 
-  // ──────────────────────────────────────────────
-  // Cookie helpers
-  // ──────────────────────────────────────────────
-
   setCookie(name, value, days) {
     const d = new Date();
     d.setTime(d.getTime() + days * 864e5);
@@ -179,18 +228,4 @@ class AntiCheat {
   }
 }
 
-// Initialize
 window.antiCheat = new AntiCheat();
-
-// ──────────────────────────────────────────────
-// Example integration in your game code:
-// ──────────────────────────────────────────────
-//
-// When player clicks "Submit guess":
-//
-// if (!window.antiCheat.onGuessSubmitted()) {
-//   // show message "Cheating detected — guess blocked" or just return
-//   return;
-// }
-//
-// ... then send guess to server ...
