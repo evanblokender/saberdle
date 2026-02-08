@@ -14,7 +14,7 @@ let infiniteSongs = [];
 let currentInfiniteSong = null;
 
 // Version for cache busting
-const APP_VERSION = "2.0.5";
+const APP_VERSION = "2.0.6";
 
 // DOM Elements
 const audio = document.getElementById("audio");
