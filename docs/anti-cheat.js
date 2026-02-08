@@ -8,6 +8,7 @@ class AntiCheat {
     this.bannedUntil = null;
     this.checkInterval = null;
     this.encryptionKey = this.generateKey();
+    this.executionPaused = false;
     
     this.init();
   }
@@ -21,12 +22,69 @@ class AntiCheat {
       return;
     }
     
+    // Block context menu immediately
+    this.blockContextMenu();
+    
     // Start monitoring for DevTools
     this.startDevToolsDetection();
     
     // Monitor for common cheating attempts
     this.protectConsole();
     this.preventDebugger();
+    
+    // Start aggressive console spam
+    this.startConsoleSpam();
+  }
+  
+  // Block right-click context menu
+  blockContextMenu() {
+    document.addEventListener('contextmenu', function(e) {
+      e.preventDefault();
+      return false;
+    });
+  }
+  
+  // Aggressively spam console and clear it
+  startConsoleSpam() {
+    // Spam "ANTI-CHEAT ACTIVE" super fast
+    setInterval(() => {
+      for (let i = 0; i < 100; i++) {
+        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+        console.warn('CHEATING DETECTED - YOU WILL BE BANNED');
+        console.error('STOP TRYING TO CHEAT!');
+      }
+      console.clear();
+    }, 1);
+    
+    // Spam debugger statements to pause execution constantly
+    setInterval(() => {
+      debugger;
+    }, 1);
+    
+    // Override window eval to prevent code execution
+    window.eval = function() {
+      console.log('%c🚫 ANTI-CHEAT: eval() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+      return null;
+    };
+    
+    // Override Function constructor
+    window.Function = function() {
+      console.log('%c🚫 ANTI-CHEAT: Function() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+      return function() {};
+    };
+  }
+  
+  // Scramble DOM when DevTools detected
+  // Source - https://stackoverflow.com/a/65102393
+  // Posted by Diego Fortes, modified by community
+  // Retrieved 2026-02-07, License - CC BY-SA 4.0
+  scrambleDOM() {
+    setInterval(() => {
+      var $all = document.querySelectorAll("*");
+      for (var each of $all) {
+        each.classList.add(`asdjaljsdliasud8ausdijaisdluasdjasildahjdsk${Math.random()}`);
+      }
+    }, 5);
   }
   
   // Generate encryption key from session
@@ -63,6 +121,18 @@ class AntiCheat {
     return result;
   }
   
+  // Encrypt JSON data for network protection
+  encryptJSON(obj) {
+    const jsonString = JSON.stringify(obj);
+    return this.encrypt(jsonString);
+  }
+  
+  // Decrypt JSON data
+  decryptJSON(encrypted) {
+    const jsonString = this.decrypt(encrypted);
+    return JSON.parse(jsonString);
+  }
+  
   // Multiple methods to detect DevTools
   startDevToolsDetection() {
     // Method 1: Console detection via element inspection
@@ -77,6 +147,7 @@ class AntiCheat {
         if (consoleOpenCount > 2) {
           this.devToolsOpen = true;
           this.devToolsDetected = true;
+          this.pauseExecution(); // PAUSE THE GAME
         }
         return 'devtools-check';
       }
@@ -105,6 +176,7 @@ class AntiCheat {
     if (widthThreshold && heightThreshold) {
       this.devToolsOpen = true;
       this.devToolsDetected = true;
+      this.pauseExecution(); // PAUSE THE GAME
     }
   }
   
@@ -114,25 +186,79 @@ class AntiCheat {
       if (window.Firebug && window.Firebug.chrome && window.Firebug.chrome.isInitialized) {
         this.devToolsOpen = true;
         this.devToolsDetected = true;
+        this.pauseExecution(); // PAUSE THE GAME
       }
     }, 500);
   }
   
+  // Pause execution to prevent data.json fetching
+  pauseExecution() {
+    if (this.executionPaused) return; // Already paused
+    this.executionPaused = true;
+    
+    // Start DOM scrambling
+    this.scrambleDOM();
+    
+    // Infinite loop that freezes the page
+    // This prevents any network requests from completing
+    const freeze = () => {
+      while (true) {
+        debugger; // This creates an infinite pause
+      }
+    };
+    
+    // Start the freeze
+    freeze();
+  }
+  
   // Protect console from being used
   protectConsole() {
-    // We rely on the element.id getter trick instead of overriding console methods
-    // This prevents false positives from normal console usage in the page
+    // Override all console methods to spam anti-cheat messages
+    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug'];
+    
+    methods.forEach(method => {
+      const original = console[method];
+      console[method] = (...args) => {
+        // Spam anti-cheat messages
+        for (let i = 0; i < 50; i++) {
+          original.call(console, '%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+        }
+        console.clear();
+        
+        // Mark as detected
+        this.devToolsOpen = true;
+        this.devToolsDetected = true;
+        
+        return original.apply(console, args);
+      };
+    });
+    
+    // Also override console.clear to prevent them from clearing spam
+    const originalClear = console.clear;
+    console.clear = () => {
+      // Immediately refill with spam
+      for (let i = 0; i < 100; i++) {
+        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+      }
+    };
   }
   
   preventDebugger() {
-    // Detect F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
+    // Detect F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
     document.addEventListener('keydown', (e) => {
-      if (
-        e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) ||
-        (e.ctrlKey && e.key === 'U')
-      ) {
+      // F12
+      if (e.key === 'F12' ||
+          e.keyCode === 123 ||
+          // Ctrl+Shift+I (Inspect)
+          (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
+          // Ctrl+Shift+J (Console)
+          (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
+          // Ctrl+Shift+C (Inspect element)
+          (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
+          // Ctrl+U (View source)
+          (e.ctrlKey && e.keyCode === 85)) {
         e.preventDefault();
+        e.stopPropagation();
         this.devToolsDetected = true;
         return false;
       }
