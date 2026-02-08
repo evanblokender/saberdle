@@ -1,12 +1,10 @@
 class AntiCheat {
   constructor() {
-    this.devToolsDetected = false;
+    this.devToolsOpen = false;
+    this.devToolsStrongEvidence = false;   // only this triggers ban potential
     this.bannedUntil = null;
-    this.fingerprint = this.generateFingerprint();
-    this.checkInterval = null;
-    this.aggressiveActive = false;
-    this.sensitiveDataProxied = false;
-
+    this.fingerprint = this.generateSimpleFingerprint();
+    this.guessSubmittedThisSession = false;
     this.init();
   }
 
@@ -21,264 +19,135 @@ class AntiCheat {
     this.blockContextMenu();
     this.blockDevToolsShortcuts();
     this.startDevToolsDetection();
-    this.preventCommonCheatTools();
-    this.hideSensitiveGlobals();
   }
 
-  generateFingerprint() {
-    const data = [
+  generateSimpleFingerprint() {
+    // Very basic but stable enough to survive cookie clear
+    const parts = [
       navigator.userAgent,
-      navigator.language,
-      screen.width + 'x' + screen.height,
+      screen.width + '×' + screen.height,
       new Date().getTimezoneOffset(),
-      !!window.chrome,
-      navigator.hardwareConcurrency || 0
-    ].join('|');
-    let hash = 0;
-    for (let i = 0; i < data.length; i++) {
-      hash = ((hash << 5) - hash) + data.charCodeAt(i);
-      hash |= 0;
-    }
-    return Math.abs(hash).toString(36);
+      navigator.language || 'en'
+    ];
+    return btoa(parts.join('|')).slice(0, 32);
   }
 
   blockContextMenu() {
-    document.addEventListener('contextmenu', e => e.preventDefault(), { capture: true });
+    document.addEventListener('contextmenu', e => {
+      e.preventDefault();
+    }, { capture: true });
   }
 
   blockDevToolsShortcuts() {
     document.addEventListener('keydown', e => {
       if (
         e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
-        (e.ctrlKey && e.key === 'u' || e.key === 'U')
+        (e.ctrlKey && e.shiftKey && ['I','i','J','j','C','c'].includes(e.key)) ||
+        (e.ctrlKey && (e.key === 'U' || e.key === 'u'))
       ) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
+        this.devToolsOpen = true;
+        this.devToolsStrongEvidence = true;
       }
     }, { capture: true });
   }
 
   startDevToolsDetection() {
-    this.detectViaSize();
-    this.detectViaConsoleTrick();
-    this.detectViaTiming();
+    // Only reliable method left — size difference
+    this.checkWindowSize();
+    window.addEventListener('resize', () => this.checkWindowSize());
 
-    window.addEventListener('resize', () => this.detectViaSize());
-    this.checkInterval = setInterval(() => {
-      this.detectViaSize();
-      this.detectViaTiming();
-    }, 800);
+    // Periodic check in case window properties change later
+    setInterval(() => this.checkWindowSize(), 3000);
   }
 
-  detectViaSize() {
-    const deltaOuterInnerW = window.outerWidth - window.innerWidth;
-    const deltaOuterInnerH = window.outerHeight - window.innerHeight;
+  checkWindowSize() {
+    const wDiff = window.outerWidth - window.innerWidth;
+    const hDiff = window.outerHeight - window.innerHeight;
+
+    // Very conservative thresholds — requires quite obvious docking
     if (
-      (deltaOuterInnerW > 150 && deltaOuterInnerH > 150) ||
-      (deltaOuterInnerW > 300 || deltaOuterInnerH > 300)
+      (wDiff > 350 && hDiff > 200) ||
+      (hDiff > 350 && wDiff > 200) ||
+      (wDiff > 500 || hDiff > 500)
     ) {
-      this.devToolsDetected = true;
-      this.activateAggressiveMeasures();
+      this.devToolsOpen = true;
+      this.devToolsStrongEvidence = true;
     }
   }
 
-  detectViaConsoleTrick() {
-    const testObj = {};
-    let triggerCount = 0;
+  // Call this when the player submits a guess
+  onGuessSubmitted() {
+    this.guessSubmittedThisSession = true;
 
-    Object.defineProperty(testObj, 'prop', {
-      get: () => {
-        triggerCount++;
-        if (triggerCount >= 3) {
-          this.devToolsDetected = true;
-          this.activateAggressiveMeasures();
-        }
-        return 42;
-      }
-    });
-
-    setInterval(() => {
-      console.log(testObj.prop);
-      console.clear();
-    }, 1200);
-  }
-
-  detectViaTiming() {
-    const start = performance.now();
-    debugger;
-    const end = performance.now();
-
-    if (end - start > 40) {
-      this.devToolsDetected = true;
-      this.activateAggressiveMeasures();
-    }
-  }
-
-  activateAggressiveMeasures() {
-    if (this.aggressiveActive) return;
-    this.aggressiveActive = true;
-
-    this.startHeavyConsoleSpam();
-    this.protectConsoleMethods();
-    this.scrambleDOM();
-    this.banOnNextInteraction();
-  }
-
-  startHeavyConsoleSpam() {
-    setInterval(() => {
-      for (let i = 0; i < 80; i++) {
-        console.log('%cANTI-CHEAT TRIGGERED — CHEATING DETECTED', 'color:#f00;font-size:22px;font-weight:bold;background:#000;padding:6px');
-      }
-      console.clear();
-    }, 80);
-
-    setInterval(() => { debugger; }, 300);
-  }
-
-  protectConsoleMethods() {
-    const methods = ['log','info','warn','error','debug','table','dir','dirxml','trace'];
-    methods.forEach(m => {
-      const orig = console[m];
-      console[m] = (...args) => {
-        for (let i = 0; i < 30; i++) {
-          orig.call(console, '%cCHEAT DETECTED — CLOSE DEVTOOLS', 'color:red;font-size:18px');
-        }
-        console.clear();
-        return orig.apply(console, args);
-      };
-    });
-
-    const origEval = window.eval;
-    window.eval = code => {
-      console.warn('eval blocked by anti-cheat');
-      return null;
-    };
-
-    const origFunc = window.Function;
-    window.Function = function(...args) {
-      console.warn('Function constructor blocked by anti-cheat');
-      return function() { return null; };
-    };
-  }
-
-  scrambleDOM() {
-    setInterval(() => {
-      document.querySelectorAll('*').forEach(el => {
-        el.className += ` x-${Math.random().toString(36).slice(2)}`;
-      });
-    }, 600);
-  }
-
-  hideSensitiveGlobals() {
-    if (this.sensitiveDataProxied) return;
-    this.sensitiveDataProxied = true;
-
-    const sensitiveNames = ['answer', 'solution', 'correctAnswer', 'gameAnswer', 'currentAnswer', 'flag'];
-
-    sensitiveNames.forEach(name => {
-      let realValue = window[name];
-      delete window[name];
-
-      Object.defineProperty(window, name, {
-        get: () => {
-          this.devToolsDetected = true;
-          this.activateAggressiveMeasures();
-          return 'CHEAT_DETECTED';
-        },
-        set: () => {},
-        configurable: false
-      });
-
-      if (realValue !== undefined) {
-        window[`_${name}_hidden`] = realValue;
-      }
-    });
-
-    const originalJSON = JSON.stringify;
-    JSON.stringify = (obj, ...args) => {
-      if (obj && typeof obj === 'object') {
-        sensitiveNames.forEach(name => {
-          if (obj[name]) obj[name] = 'REDACTED_BY_ANTICHEAT';
-        });
-      }
-      return originalJSON.call(JSON, obj, ...args);
-    };
-  }
-
-  banOnNextInteraction() {
-    const banHandler = () => {
+    if (this.devToolsStrongEvidence) {
       this.banUser();
-      document.removeEventListener('click', banHandler);
-      document.removeEventListener('keydown', banHandler);
-    };
-    document.addEventListener('click', banHandler, { once: true, capture: true });
-    document.addEventListener('keydown', banHandler, { once: true, capture: true });
+      return false; // block the guess submission
+    }
+
+    return true; // allow guess
   }
 
   checkBanStatus() {
-    let banData = this.getCookie('beatdle_ban') || localStorage.getItem('beatdle_ban_' + this.fingerprint);
+    let banData = this.getCookie('beat_ban') || localStorage.getItem('beat_ban_fp_' + this.fingerprint);
 
     if (banData) {
       try {
-        const data = JSON.parse(atob(banData));
-        this.bannedUntil = new Date(data.until);
+        const parsed = JSON.parse(atob(banData));
+        this.bannedUntil = new Date(parsed.until);
       } catch {
-        this.clearBan();
+        this.clearBanData();
       }
     }
   }
 
   isBanned() {
     if (!this.bannedUntil) return false;
-    const now = new Date();
-    if (now < this.bannedUntil) return true;
-
-    this.clearBan();
+    if (new Date() < this.bannedUntil) return true;
+    this.clearBanData();
     return false;
   }
 
   banUser() {
-    const banUntil = new Date();
-    banUntil.setDate(banUntil.getDate() + 7);
+    const until = new Date();
+    until.setDate(until.getDate() + 7);
 
-    const banData = {
-      until: banUntil.toISOString(),
-      reason: 'devtools_usage',
+    const data = {
+      until: until.toISOString(),
+      reason: 'devtools_detected',
       fp: this.fingerprint
     };
 
-    const encoded = btoa(JSON.stringify(banData));
+    const encoded = btoa(JSON.stringify(data));
 
-    this.setCookie('beatdle_ban', encoded, 7);
-    localStorage.setItem('beatdle_ban_' + this.fingerprint, encoded);
+    this.setCookie('beat_ban', encoded, 7);
+    localStorage.setItem('beat_ban_fp_' + this.fingerprint, encoded);
 
-    this.bannedUntil = banUntil;
+    this.bannedUntil = until;
     this.showBanScreen();
   }
 
-  clearBan() {
-    this.deleteCookie('beatdle_ban');
-    localStorage.removeItem('beatdle_ban_' + this.fingerprint);
+  clearBanData() {
+    this.deleteCookie('beat_ban');
+    localStorage.removeItem('beat_ban_fp_' + this.fingerprint);
     this.bannedUntil = null;
   }
 
   showBanScreen() {
     document.body.innerHTML = `
-      <div style="position:fixed;inset:0;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;">
-        <div style="background:white;padding:50px;border-radius:24px;box-shadow:0 25px 70px rgba(0,0,0,0.4);text-align:center;max-width:520px;">
-          <div style="font-size:80px;margin-bottom:24px;">⛔</div>
-          <h1 style="color:#c0392b;margin:0 0 24px;font-size:36px;">Cheating Detected</h1>
-          <p style="color:#444;font-size:19px;margin-bottom:24px;">
-            Developer Tools usage was detected during gameplay.
+      <div style="position:fixed;inset:0;z-index:999999;background:#111;color:#fff;display:flex;align-items:center;justify-content:center;font-family:system-ui;">
+        <div style="text-align:center;padding:40px;max-width:500px;">
+          <div style="font-size:90px;margin-bottom:20px;">🚫</div>
+          <h1 style="font-size:36px;color:#e74c3c;margin:0 0 20px;">Banned — 7 days</h1>
+          <p style="font-size:18px;margin:0 0 24px;">
+            Developer Tools / Inspector usage was detected while playing.
           </p>
-          <p style="color:#222;font-size:17px;font-weight:bold;margin-bottom:32px;">
-            7-day ban active — expires ${this.bannedUntil ? this.bannedUntil.toLocaleString() : '???'}
+          <p style="font-size:17px;color:#aaa;">
+            Ban expires: ${this.bannedUntil ? this.bannedUntil.toLocaleString() : 'unknown'}
           </p>
-          <p style="color:#777;font-size:15px;">
-            Play fair. See you soon.
+          <p style="margin-top:40px;color:#777;font-size:14px;">
+            Play fair next time.
           </p>
         </div>
       </div>
@@ -286,36 +155,42 @@ class AntiCheat {
     document.body.style.overflow = 'hidden';
   }
 
+  // ──────────────────────────────────────────────
+  // Cookie helpers
+  // ──────────────────────────────────────────────
+
   setCookie(name, value, days) {
     const d = new Date();
-    d.setTime(d.getTime() + days * 86400000);
+    d.setTime(d.getTime() + days * 864e5);
     document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Strict;Secure`;
   }
 
   getCookie(name) {
     const prefix = name + "=";
-    for (const c of document.cookie.split(';')) {
-      let trimmed = c.trim();
-      if (trimmed.startsWith(prefix)) return trimmed.substring(prefix.length);
+    for (let c of document.cookie.split(';')) {
+      c = c.trim();
+      if (c.startsWith(prefix)) return c.substring(prefix.length);
     }
     return null;
   }
 
   deleteCookie(name) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
-  }
-
-  preventCommonCheatTools() {
-    setInterval(() => {
-      if (window.console && console.clear && console.log.length === 0) {
-        this.devToolsDetected = true;
-      }
-    }, 2000);
-  }
-
-  destroy() {
-    if (this.checkInterval) clearInterval(this.checkInterval);
+    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;`;
   }
 }
 
+// Initialize
 window.antiCheat = new AntiCheat();
+
+// ──────────────────────────────────────────────
+// Example integration in your game code:
+// ──────────────────────────────────────────────
+//
+// When player clicks "Submit guess":
+//
+// if (!window.antiCheat.onGuessSubmitted()) {
+//   // show message "Cheating detected — guess blocked" or just return
+//   return;
+// }
+//
+// ... then send guess to server ...
