@@ -1,259 +1,188 @@
-// Leaderboard API Configuration
-// IMPORTANT: Replace/update if your Render URL changes
-const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
+const express = require('express');
+const cors = require('cors');
+const { Redis } = require('@upstash/redis');
 
-// Leaderboard State
-let leaderboardData = [];
-let currentUsername = localStorage.getItem('beatdle-username') || '';
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// Initialize leaderboard
-function initLeaderboard() {
-  const usernameInput = document.getElementById('username-input');
-  if (usernameInput && currentUsername) {
-    usernameInput.value = currentUsername;
-  }
-  loadLeaderboard();
+app.use(cors({ origin: '*', methods: ['GET', 'POST', 'DELETE', 'OPTIONS'] }));
+app.use(express.json());
+
+// Force JSON on all responses
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
+});
+
+const LEADERBOARD_KEY = 'leaderboard:global';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+
+// Startup checks
+if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
+  console.error('MISSING UPSTASH REDIS URL OR TOKEN — EXITING');
+  process.exit(1);
 }
 
-// Load leaderboard from API
-async function loadLeaderboard() {
+console.log('Redis client initialized');
+
+// ────────────────────────────────────────────────
+// GET /api/leaderboard
+// ────────────────────────────────────────────────
+app.get('/api/leaderboard', async (req, res) => {
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    const entries = await redis.zrange(LEADERBOARD_KEY, 0, 99, {
+      rev: true,
+      withscores: true,
+    });
 
-    const result = await response.json();
+    const leaderboard = [];
+    for (let i = 0; i < entries.length; i += 2) {
+      const username = entries[i];
+      const score = Number(entries[i + 1]);
+      const info = await redis.hgetall(`user:${username}:info`);
 
-    if (result.success) {
-      leaderboardData = result.data || [];
-      updateLeaderboardDisplay();
-    } else {
-      console.error('Failed to load leaderboard:', result.message);
-      showToast('Could not load leaderboard');
-    }
-  } catch (error) {
-    console.error('Error loading leaderboard:', error);
-    showToast('Failed to load leaderboard. Check connection.');
-  }
-}
-
-// Update leaderboard display
-function updateLeaderboardDisplay() {
-  const leaderboardList = document.getElementById('leaderboard-list');
-  if (!leaderboardList) return;
-
-  leaderboardList.innerHTML = '';
-
-  if (leaderboardData.length === 0) {
-    leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
-    return;
-  }
-
-  leaderboardData.forEach((entry, index) => {
-    const row = document.createElement('div');
-    row.className = 'leaderboard-row';
-
-    if (entry.username.toLowerCase() === currentUsername.toLowerCase()) {
-      row.classList.add('current-user');
-    }
-
-    let medal = '';
-    if (index === 0) medal = '🥇';
-    else if (index === 1) medal = '🥈';
-    else if (index === 2) medal = '🥉';
-
-    const date = entry.date ? new Date(entry.date) : null;
-    const dateStr = date ? date.toLocaleDateString() : '—';
-
-    row.innerHTML = `
-      <span class="leaderboard-rank">${medal || `#${index + 1}`}</span>
-      <span class="leaderboard-username">${escapeHtml(entry.username)}</span>
-      <span class="leaderboard-score">${entry.score}</span>
-      <span class="leaderboard-date">${dateStr}</span>
-      ${isAdminMode() ? `<button class="leaderboard-delete" data-username="${escapeHtml(entry.username)}">🗑️</button>` : ''}
-    `;
-
-    leaderboardList.appendChild(row);
-  });
-
-  if (isAdminMode()) {
-    document.querySelectorAll('.leaderboard-delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        const username = e.target.dataset.username;
-        deleteLeaderboardEntry(username);
+      leaderboard.push({
+        username,
+        score,
+        date: info?.date || null,
+        rank: Math.floor(i / 2) + 1,
       });
-    });
+    }
+
+    res.json({ success: true, data: leaderboard });
+  } catch (err) {
+    console.error('GET leaderboard error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to fetch leaderboard' });
   }
-}
+});
 
-// Submit score to leaderboard (fixed version)
-async function submitToLeaderboard(score) {
-  const usernameInput = document.getElementById('username-input');
-  const username = usernameInput ? usernameInput.value.trim() : currentUsername;
-
-  if (!username) {
-    showToast('Please enter a username first!');
-    return false;
-  }
-
-  if (username.length < 3 || username.length > 20) {
-    showToast('Username must be 3-20 characters');
-    return false;
-  }
-
+// ────────────────────────────────────────────────
+// POST /api/leaderboard
+// ────────────────────────────────────────────────
+app.post('/api/leaderboard', async (req, res) => {
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ username, score })
-    });
+    const { username, score } = req.body;
 
-    // Handle non-200 responses first
-    if (!response.ok) {
-      let errorMsg = `Server error (${response.status})`;
-      try {
-        const errData = await response.json();
-        errorMsg += `: ${errData.message || 'Unknown error'}`;
-      } catch {
-        errorMsg += ' (could not read response)';
+    if (!username || typeof score !== 'number' || isNaN(score)) {
+      return res.status(400).json({ success: false, message: 'Username (string) and numeric score required' });
+    }
+
+    if (username.length < 3 || username.length > 20) {
+      return res.status(400).json({ success: false, message: 'Username must be 3–20 characters' });
+    }
+
+    const lower = username.toLowerCase().trim();
+    const badWords = ['fuck', 'shit', 'bitch', 'ass', 'damn', 'nigger', 'nigga'];
+    if (badWords.some(w => lower.includes(w))) {
+      return res.status(400).json({ success: false, message: 'Inappropriate username' });
+    }
+
+    const normUsername = username.trim();
+
+    let current = 0;
+    try {
+      const currScore = await redis.zscore(LEADERBOARD_KEY, normUsername);
+      current = currScore ? Number(currScore) : 0;
+    } catch (e) {
+      console.error('Redis zscore failed:', e.message);
+      return res.status(500).json({ success: false, message: 'Database error (check score)' });
+    }
+
+    if (score <= current) {
+      return res.status(400).json({ success: false, message: 'Existing score is higher or equal' });
+    }
+
+    try {
+      await redis.zadd(LEADERBOARD_KEY, score, normUsername);
+    } catch (e) {
+      console.error('Redis zadd failed:', e.message);
+      return res.status(500).json({ success: false, message: 'Database error (save score)' });
+    }
+
+    const date = new Date().toISOString();
+    try {
+      await redis.hset(`user:${normUsername}:info`, { date, originalUsername: username });
+    } catch (e) {
+      console.warn('Redis hset failed (non-critical):', e.message);
+      // continue anyway
+    }
+
+    res.json({
+      success: true,
+      message: current === 0 ? 'Score submitted!' : 'Score updated!',
+      data: { username: normUsername, score, date }
+    });
+  } catch (err) {
+    console.error('POST /api/leaderboard full crash:', err.stack);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// ────────────────────────────────────────────────
+// DELETE /api/leaderboard/:username
+// ────────────────────────────────────────────────
+app.delete('/api/leaderboard/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    const { adminPassword } = req.body;
+
+    if (adminPassword !== ADMIN_PASSWORD) {
+      return res.status(403).json({ success: false, message: 'Invalid admin password' });
+    }
+
+    const normUsername = username.trim();
+
+    await redis.zrem(LEADERBOARD_KEY, normUsername);
+    await redis.del(`user:${normUsername}:info`);
+
+    res.json({ success: true, message: 'Entry deleted' });
+  } catch (err) {
+    console.error('DELETE error:', err.message);
+    res.status(500).json({ success: false, message: 'Failed to delete' });
+  }
+});
+
+// ────────────────────────────────────────────────
+// Debug + Health
+// ────────────────────────────────────────────────
+app.get('/api/debug-redis', async (req, res) => {
+  try {
+    await redis.set('health:ping', 'ok', { ex: 60 });
+    const ping = await redis.get('health:ping');
+    const size = await redis.zcard(LEADERBOARD_KEY);
+
+    res.json({
+      success: true,
+      redis: {
+        ping_ok: ping === 'ok',
+        leaderboard_entries: size,
+        env_vars: {
+          url: !!process.env.UPSTASH_REDIS_REST_URL,
+          token: !!process.env.UPSTASH_REDIS_REST_TOKEN,
+          admin: !!ADMIN_PASSWORD
+        }
       }
-      showToast(errorMsg);
-      console.error('Server responded with error:', response.status, await response.text());
-      return false;
-    }
-
-    // Parse JSON safely
-    const result = await response.json();
-
-    // Guard against weird responses (like just a number)
-    if (!result || typeof result !== 'object') {
-      console.error('Invalid response format:', result);
-      showToast('Invalid response from server');
-      return false;
-    }
-
-    if (result.success) {
-      currentUsername = username;
-      localStorage.setItem('beatdle-username', username);
-      showToast(result.message || 'Score submitted!');
-      loadLeaderboard(); // Refresh
-      return true;
-    } else {
-      showToast(result.message || 'Failed to submit score');
-      return false;
-    }
-  } catch (error) {
-    console.error('Submit network/fetch error:', error);
-    showToast('Failed to reach leaderboard server. Check your connection or the URL.');
-    return false;
-  }
-}
-
-// Delete leaderboard entry (admin only)
-async function deleteLeaderboardEntry(username) {
-  const adminPasswordInput = document.getElementById('admin-password-input');
-  const adminPassword = adminPasswordInput ? adminPasswordInput.value.trim() : '';
-
-  if (!adminPassword) {
-    showToast('Please enter admin password');
-    return;
-  }
-
-  if (!confirm(`Delete entry for "${username}"?`)) {
-    return;
-  }
-
-  try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard/${encodeURIComponent(username)}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ adminPassword })
     });
-
-    if (!response.ok) {
-      let errorMsg = `Delete failed (${response.status})`;
-      try {
-        const errData = await response.json();
-        errorMsg += `: ${errData.message || 'Unknown'}`;
-      } catch {}
-      showToast(errorMsg);
-      return;
-    }
-
-    const result = await response.json();
-
-    if (result.success) {
-      showToast('Entry deleted successfully');
-      loadLeaderboard();
-    } else {
-      showToast(result.message || 'Failed to delete entry');
-    }
-  } catch (error) {
-    console.error('Delete error:', error);
-    showToast('Failed to delete entry');
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
-}
+});
 
-// Check admin mode
-function isAdminMode() {
-  const adminPasswordInput = document.getElementById('admin-password-input');
-  return adminPasswordInput && adminPasswordInput.value.trim().length > 0;
-}
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
-// Toggle admin panel
-function toggleAdminPanel() {
-  const adminPanel = document.getElementById('admin-panel');
-  if (adminPanel) {
-    const isVisible = adminPanel.style.display === 'block';
-    adminPanel.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-      document.getElementById('admin-password-input')?.focus();
-    }
-  }
-}
+// Global fallback error handler (last line before listen)
+app.use((err, req, res, next) => {
+  console.error('GLOBAL ERROR:', err.stack);
+  res.status(500).json({ success: false, message: 'Server crashed — check logs' });
+});
 
-// Escape HTML
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// Re-render when admin password changes
-function onAdminPasswordChange() {
-  updateLeaderboardDisplay();
-}
-
-// Show username prompt
-function showUsernamePrompt() {
-  const prompt = document.getElementById('username-prompt');
-  if (prompt) {
-    prompt.style.display = 'block';
-    document.getElementById('username-input')?.focus();
-  }
-}
-
-// Hide username prompt
-function hideUsernamePrompt() {
-  const prompt = document.getElementById('username-prompt');
-  if (prompt) prompt.style.display = 'none';
-}
-
-// Export
-if (typeof window !== 'undefined') {
-  window.leaderboardAPI = {
-    init: initLeaderboard,
-    load: loadLeaderboard,
-    submit: submitToLeaderboard,
-    showPrompt: showUsernamePrompt,
-    hidePrompt: hideUsernamePrompt,
-    toggleAdmin: toggleAdminPanel,
-    onAdminPasswordChange: onAdminPasswordChange
-  };
-}
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
