@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.2.2";
+const APP_VERSION = "2.3.0";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -65,6 +65,11 @@ function init() {
   setupEventListeners();
   updateCountdown();
   setInterval(updateCountdown, 1000);
+  
+  // Initialize leaderboard if available
+  if (window.leaderboardAPI) {
+    window.leaderboardAPI.init();
+  }
 }
 
 // Version Management (Cache Busting)
@@ -745,6 +750,11 @@ function endGame(won) {
   // Show reset button in infinite mode
   if (gameMode === "infinite") {
     resetBtn.style.display = "block";
+    
+    // Show leaderboard submission prompt if available
+    if (window.leaderboardAPI && !won) {
+      window.leaderboardAPI.showPrompt();
+    }
   } else {
     resetBtn.style.display = "none";
   }
