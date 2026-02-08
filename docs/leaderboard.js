@@ -13,7 +13,7 @@ function initLeaderboard() {
   if (usernameInput && currentUsername) {
     usernameInput.value = currentUsername;
   }
-  
+
   // Load leaderboard on page load
   loadLeaderboard();
 }
@@ -23,7 +23,7 @@ async function loadLeaderboard() {
   try {
     const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`);
     const result = await response.json();
-    
+
     if (result.success) {
       leaderboardData = result.data;
       updateLeaderboardDisplay();
@@ -40,49 +40,49 @@ async function loadLeaderboard() {
 function updateLeaderboardDisplay() {
   const leaderboardList = document.getElementById('leaderboard-list');
   if (!leaderboardList) return;
-  
+
   leaderboardList.innerHTML = '';
-  
+
   if (leaderboardData.length === 0) {
     leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
     return;
   }
-  
+
   leaderboardData.forEach((entry, index) => {
     const row = document.createElement('div');
     row.className = 'leaderboard-row';
-    
+
     // Highlight current user
     if (entry.username.toLowerCase() === currentUsername.toLowerCase()) {
       row.classList.add('current-user');
     }
-    
+
     // Medal for top 3
     let medal = '';
     if (index === 0) medal = '🥇';
     else if (index === 1) medal = '🥈';
     else if (index === 2) medal = '🥉';
-    
-    const date = new Date(entry.date);
-    const dateStr = date.toLocaleDateString();
-    
+
+    const date = entry.date ? new Date(entry.date) : null;
+    const dateStr = date ? date.toLocaleDateString() : '—';
+
     row.innerHTML = `
       <span class="leaderboard-rank">${medal || `#${index + 1}`}</span>
       <span class="leaderboard-username">${escapeHtml(entry.username)}</span>
       <span class="leaderboard-score">${entry.score}</span>
       <span class="leaderboard-date">${dateStr}</span>
-      ${isAdminMode() ? `<button class="leaderboard-delete" data-id="${entry.id}">🗑️</button>` : ''}
+      ${isAdminMode() ? `<button class="leaderboard-delete" data-username="${escapeHtml(entry.username)}">🗑️</button>` : ''}
     `;
-    
+
     leaderboardList.appendChild(row);
   });
-  
+
   // Add delete button listeners if admin mode
   if (isAdminMode()) {
     document.querySelectorAll('.leaderboard-delete').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const id = e.target.dataset.id;
-        deleteLeaderboardEntry(id);
+        const username = e.target.dataset.username;
+        deleteLeaderboardEntry(username);
       });
     });
   }
@@ -92,18 +92,18 @@ function updateLeaderboardDisplay() {
 async function submitToLeaderboard(score) {
   const usernameInput = document.getElementById('username-input');
   const username = usernameInput ? usernameInput.value.trim() : currentUsername;
-  
+
   if (!username) {
     showToast('Please enter a username first!');
     return false;
   }
-  
-  // Validate username
+
+  // Validate username (client-side mirror of backend)
   if (username.length < 3 || username.length > 20) {
     showToast('Username must be 3-20 characters');
     return false;
   }
-  
+
   try {
     const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
@@ -112,14 +112,14 @@ async function submitToLeaderboard(score) {
       },
       body: JSON.stringify({ username, score })
     });
-    
+
     const result = await response.json();
-    
+
     if (result.success) {
       currentUsername = username;
       localStorage.setItem('beatdle-username', username);
       showToast(result.message);
-      loadLeaderboard(); // Refresh leaderboard
+      loadLeaderboard(); // Refresh
       return true;
     } else {
       showToast(result.message || 'Failed to submit score');
@@ -127,83 +127,81 @@ async function submitToLeaderboard(score) {
     }
   } catch (error) {
     console.error('Error submitting score:', error);
-    showToast('Failed to submit score. Check your API URL.');
+    showToast('Failed to submit score. Check your API URL or connection.');
     return false;
   }
 }
 
-// Delete leaderboard entry (admin only)
-async function deleteLeaderboardEntry(id) {
+// Delete leaderboard entry (admin only) — now uses username, not id
+async function deleteLeaderboardEntry(username) {
   const adminPasswordInput = document.getElementById('admin-password-input');
-  const adminPassword = adminPasswordInput ? adminPasswordInput.value : '';
-  
+  const adminPassword = adminPasswordInput ? adminPasswordInput.value.trim() : '';
+
   if (!adminPassword) {
     showToast('Please enter admin password');
     return;
   }
-  
-  if (!confirm('Are you sure you want to delete this entry?')) {
+
+  if (!confirm(`Delete entry for "${username}"? This cannot be undone.`)) {
     return;
   }
-  
+
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
+    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard/${encodeURIComponent(username)}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ adminPassword })
     });
-    
+
     const result = await response.json();
-    
+
     if (result.success) {
       showToast('Entry deleted successfully');
-      loadLeaderboard(); // Refresh leaderboard
+      loadLeaderboard(); // Refresh
     } else {
       showToast(result.message || 'Failed to delete entry');
     }
   } catch (error) {
     console.error('Error deleting entry:', error);
-    showToast('Failed to delete entry');
+    showToast('Failed to delete entry — check console for details');
   }
 }
 
-// Check if admin mode is active
+// Check if admin mode is active (password field has value)
 function isAdminMode() {
   const adminPasswordInput = document.getElementById('admin-password-input');
-  return adminPasswordInput && adminPasswordInput.value.length > 0;
+  return adminPasswordInput && adminPasswordInput.value.trim().length > 0;
 }
 
-// Toggle admin panel
+// Toggle admin panel visibility
 function toggleAdminPanel() {
   const adminPanel = document.getElementById('admin-panel');
   if (adminPanel) {
     const isVisible = adminPanel.style.display === 'block';
     adminPanel.style.display = isVisible ? 'none' : 'block';
-    
+
     if (!isVisible) {
       const adminPasswordInput = document.getElementById('admin-password-input');
-      if (adminPasswordInput) {
-        adminPasswordInput.focus();
-      }
+      if (adminPasswordInput) adminPasswordInput.focus();
     }
   }
 }
 
-// Utility function to escape HTML
+// Utility: escape HTML to prevent XSS
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
 }
 
-// Update leaderboard when admin password is entered
+// Re-render leaderboard when admin password changes
 function onAdminPasswordChange() {
   updateLeaderboardDisplay();
 }
 
-// Show username prompt when game ends in infinite mode
+// Show username prompt (e.g. after infinite mode game ends)
 function showUsernamePrompt() {
   const usernamePrompt = document.getElementById('username-prompt');
   if (usernamePrompt) {
@@ -223,7 +221,7 @@ function hideUsernamePrompt() {
   }
 }
 
-// Export functions for use in main.js
+// Export for use in other scripts (e.g. main.js)
 if (typeof window !== 'undefined') {
   window.leaderboardAPI = {
     init: initLeaderboard,
