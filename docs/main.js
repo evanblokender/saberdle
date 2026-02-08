@@ -4,7 +4,7 @@ let attempts = 0;
 const maxAttempts = 6;
 let isPlaying = false;
 let previewInterval = null;
-let answer = "";
+let answer = ""; // Encrypted answer stored here
 let answerDisplay = "";
 let dailyDate = "";
 let gameOver = false;
@@ -13,8 +13,12 @@ let infiniteScore = 0;
 let infiniteSongs = [];
 let currentInfiniteSong = null;
 
+// Anti-cheat: Store encrypted answer separately
+let encryptedAnswer = "";
+let actualAnswer = ""; // The real answer, hidden from console inspection
+
 // Version for cache busting
-const APP_VERSION = "2.0.6";
+const APP_VERSION = "2.1.0";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -221,10 +225,19 @@ async function loadInfiniteMode() {
       const randomSong = data.docs[Math.floor(Math.random() * data.docs.length)];
       currentInfiniteSong = randomSong;
       
-      answer = randomSong.metadata.songName.toLowerCase().trim();
+      // ANTI-CHEAT: Encrypt the answer
+      const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
+      answer = songAnswer; // Keep for compatibility
       answerDisplay = randomSong.metadata.songName;
       
-      console.log(`Selected song: ${answerDisplay}`);
+      // Encrypt and store
+      if (window.antiCheat) {
+        encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+        // Obfuscate console output
+        console.log(`Selected song: [ENCRYPTED]`);
+      } else {
+        console.log(`Selected song: ${answerDisplay}`);
+      }
       
       // Load preview URL
       if (randomSong.versions && randomSong.versions.length > 0) {
@@ -249,8 +262,15 @@ async function loadInfiniteMode() {
       if (fallbackData.docs && fallbackData.docs.length > 0) {
         const randomSong = fallbackData.docs[Math.floor(Math.random() * fallbackData.docs.length)];
         currentInfiniteSong = randomSong;
-        answer = randomSong.metadata.songName.toLowerCase().trim();
+        
+        // ANTI-CHEAT: Encrypt the answer
+        const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
+        answer = songAnswer;
         answerDisplay = randomSong.metadata.songName;
+        
+        if (window.antiCheat) {
+          encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+        }
         
         if (randomSong.versions && randomSong.versions.length > 0) {
           audio.src = randomSong.versions[0].previewURL;
@@ -303,9 +323,17 @@ async function loadDaily(skipRestore = false) {
   try {
     const cacheBuster = `?v=${Date.now()}`;
     const data = await fetch(`data.json${cacheBuster}`).then(r => r.json());
-    answer = data.songName.toLowerCase().trim();
+    
+    // ANTI-CHEAT: Encrypt the answer
+    const songAnswer = data.songName.toLowerCase().trim();
+    answer = songAnswer; // Keep for compatibility
     answerDisplay = data.songName;
     dailyDate = data.date;
+    
+    // Encrypt and store
+    if (window.antiCheat) {
+      encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+    }
     
     // Check if already played today (skip if switching modes)
     if (!skipRestore) {
@@ -624,10 +652,17 @@ function displayAutocomplete(songs) {
 function submitGuess(songName) {
   if (gameOver) return;
   
+  // ANTI-CHEAT: Check if DevTools was opened before allowing guess
+  if (window.antiCheat && !window.antiCheat.checkOnGuess()) {
+    return; // User is banned, don't process guess
+  }
+  
   guessInput.value = "";
   autocompleteResults.innerHTML = "";
   
-  const isCorrect = songName.toLowerCase().trim() === answer;
+  // Decrypt answer for comparison
+  const decryptedAnswer = window.antiCheat ? window.antiCheat.decrypt(encryptedAnswer) : answer;
+  const isCorrect = songName.toLowerCase().trim() === decryptedAnswer.toLowerCase().trim();
   
   attempts++;
   addGuess(songName, isCorrect ? "correct" : "incorrect");
