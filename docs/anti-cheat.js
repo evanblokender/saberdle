@@ -5,7 +5,7 @@ class AntiCheat {
     this.bannedUntil = null;
     this.fingerprint = this.generateSimpleFingerprint();
     this.guessSubmittedThisSession = false;
-    this.consoleWarningShown = false;
+    this.gameStartTime = Date.now();
     this.init();
   }
 
@@ -20,7 +20,6 @@ class AntiCheat {
     this.blockContextMenu();
     this.blockDevToolsShortcuts();
     this.startDevToolsDetection();
-    this.monitorConsole();
   }
 
   generateSimpleFingerprint() {
@@ -49,7 +48,8 @@ class AntiCheat {
   blockContextMenu() {
     document.addEventListener('contextmenu', e => {
       e.preventDefault();
-    }, { capture: true });
+      return false;
+    }, false); // Changed from capture: true to allow normal clicks
   }
 
   blockDevToolsShortcuts() {
@@ -60,79 +60,74 @@ class AntiCheat {
         (e.ctrlKey && (e.key === 'U' || e.key === 'u'))
       ) {
         e.preventDefault();
-        e.stopImmediatePropagation();
+        e.stopPropagation(); // Changed from stopImmediatePropagation
         this.devToolsOpen = true;
         this.devToolsStrongEvidence = true;
+        return false;
       }
-    }, { capture: true });
+    }, false); // Changed from capture: true
   }
 
   startDevToolsDetection() {
-    // More aggressive detection
-    this.checkWindowSize();
-    window.addEventListener('resize', () => this.checkWindowSize());
+    // Check on load
+    this.checkDevTools();
     
-    // Check more frequently
-    setInterval(() => {
-      this.checkWindowSize();
-      this.checkDevToolsDebugger();
-    }, 1000);
+    // Check on resize
+    window.addEventListener('resize', () => this.checkDevTools());
+    
+    // Periodic check every 2 seconds
+    setInterval(() => this.checkDevTools(), 2000);
   }
 
-  checkWindowSize() {
-    const wDiff = window.outerWidth - window.innerWidth;
-    const hDiff = window.outerHeight - window.innerHeight;
-
-    // More sensitive thresholds
-    if (
-      (wDiff > 200 || hDiff > 200)
-    ) {
+  checkDevTools() {
+    // Method 1: Window size difference
+    const widthDiff = window.outerWidth - window.innerWidth;
+    const heightDiff = window.outerHeight - window.innerHeight;
+    
+    // Detect if DevTools is docked (causes significant size difference)
+    if (widthDiff > 160 || heightDiff > 160) {
       this.devToolsOpen = true;
       this.devToolsStrongEvidence = true;
     }
-  }
 
-  checkDevToolsDebugger() {
-    // This will pause if DevTools is open
-    const start = performance.now();
-    debugger; // Will pause execution if DevTools open
-    const end = performance.now();
-    
-    // If execution took >100ms, DevTools likely open
-    if (end - start > 100) {
-      this.devToolsOpen = true;
-      this.devToolsStrongEvidence = true;
-    }
-  }
-
-  monitorConsole() {
-    // Override console methods to detect usage
-    const original = {
-      log: console.log,
-      warn: console.warn,
-      error: console.error,
-      dir: console.dir
-    };
-
-    const self = this;
-
-    ['log', 'warn', 'error', 'dir'].forEach(method => {
-      console[method] = function(...args) {
-        self.devToolsOpen = true;
-        self.devToolsStrongEvidence = true;
-        
-        if (!self.consoleWarningShown) {
-          self.consoleWarningShown = true;
-          original.warn('⚠️ Console usage detected. DevTools usage may result in a ban.');
-        }
-        
-        return original[method].apply(console, args);
-      };
+    // Method 2: Console detection trick
+    const element = new Image();
+    Object.defineProperty(element, 'id', {
+      get: () => {
+        this.devToolsOpen = true;
+        this.devToolsStrongEvidence = true;
+      }
     });
+    console.log(element);
+
+    // Method 3: Debugger timing (most reliable)
+    const before = performance.now();
+    // eslint-disable-next-line no-debugger
+    debugger;
+    const after = performance.now();
+    
+    if (after - before > 100) {
+      this.devToolsOpen = true;
+      this.devToolsStrongEvidence = true;
+    }
+  }
+
+  getTimeTaken() {
+    return Date.now() - this.gameStartTime;
+  }
+
+  resetTimer() {
+    this.gameStartTime = Date.now();
   }
 
   onGuessSubmitted() {
     this.guessSubmittedThisSession = true;
+
+    // Check if guess was too fast (likely cheating)
+    const timeTaken = this.getTimeTaken();
+    if (timeTaken < 1000) {
+      this.devToolsStrongEvidence = true;
+    }
 
     if (this.devToolsStrongEvidence) {
       this.banUser();
@@ -211,7 +206,7 @@ class AntiCheat {
   setCookie(name, value, days) {
     const d = new Date();
     d.setTime(d.getTime() + days * 864e5);
-    document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Strict;Secure`;
+    document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Strict`;
   }
 
   getCookie(name) {
@@ -228,4 +223,5 @@ class AntiCheat {
   }
 }
 
+// Initialize
 window.antiCheat = new AntiCheat();
