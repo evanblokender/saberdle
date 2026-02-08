@@ -740,12 +740,20 @@ function shareResult() {
 function updateCountdown() {
   const now = new Date();
   
-  // Get next midnight UTC
-  const tomorrow = new Date(now);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1); // Move to next day
-  tomorrow.setUTCHours(0, 0, 0, 0); // Set to midnight UTC
+  // Get next midnight EST (UTC-5)
+  // Convert current time to EST
+  const estOffset = -5 * 60; // EST is UTC-5 hours in minutes
+  const nowEST = new Date(now.getTime() + (estOffset + now.getTimezoneOffset()) * 60 * 1000);
   
-  const diff = tomorrow - now;
+  // Get next midnight EST
+  const tomorrow = new Date(nowEST);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  
+  // Convert back to local time for accurate countdown
+  const nextMidnightEST = new Date(tomorrow.getTime() - (estOffset + now.getTimezoneOffset()) * 60 * 1000);
+  
+  const diff = nextMidnightEST - now;
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
