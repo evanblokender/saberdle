@@ -9,6 +9,7 @@ class AntiCheat {
     this.checkInterval = null;
     this.encryptionKey = this.generateKey();
     this.executionPaused = false;
+    this.aggressiveActive = false; // Only activate when DevTools detected
     
     this.init();
   }
@@ -25,15 +26,14 @@ class AntiCheat {
     // Block context menu immediately
     this.blockContextMenu();
     
-    // Start monitoring for DevTools
+    // Start monitoring for DevTools (lightweight detection)
     this.startDevToolsDetection();
     
     // Monitor for common cheating attempts
-    this.protectConsole();
     this.preventDebugger();
     
-    // Start aggressive console spam
-    this.startConsoleSpam();
+    // DON'T start aggressive measures until DevTools detected
+    // This prevents lag for normal users
   }
   
   // Block right-click context menu
@@ -44,22 +44,34 @@ class AntiCheat {
     });
   }
   
+  // Start aggressive measures ONLY when DevTools detected
+  activateAggressiveMeasures() {
+    if (this.aggressiveActive) return; // Already active
+    this.aggressiveActive = true;
+    
+    console.log('DevTools detected - activating aggressive anti-cheat');
+    
+    // Now start the spam and scrambling
+    this.startConsoleSpam();
+    this.protectConsole();
+    this.scrambleDOM();
+    this.pauseExecution();
+  }
+  
   // Aggressively spam console and clear it
   startConsoleSpam() {
-    // Spam "ANTI-CHEAT ACTIVE" super fast
+    // Reduced from 1ms to 100ms to reduce lag
     setInterval(() => {
-      for (let i = 0; i < 100; i++) {
+      for (let i = 0; i < 50; i++) {
         console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-        console.warn('CHEATING DETECTED - YOU WILL BE BANNED');
-        console.error('STOP TRYING TO CHEAT!');
       }
       console.clear();
-    }, 1);
+    }, 100);
     
-    // Spam debugger statements to pause execution constantly
+    // Spam debugger less frequently
     setInterval(() => {
       debugger;
-    }, 1);
+    }, 100);
     
     // Override window eval to prevent code execution
     window.eval = function() {
@@ -79,12 +91,13 @@ class AntiCheat {
   // Posted by Diego Fortes, modified by community
   // Retrieved 2026-02-07, License - CC BY-SA 4.0
   scrambleDOM() {
+    // Reduced from 5ms to 500ms to reduce lag
     setInterval(() => {
       var $all = document.querySelectorAll("*");
       for (var each of $all) {
         each.classList.add(`asdjaljsdliasud8ausdijaisdluasdjasildahjdsk${Math.random()}`);
       }
-    }, 5);
+    }, 500);
   }
   
   // Generate encryption key from session
@@ -147,13 +160,13 @@ class AntiCheat {
         if (consoleOpenCount > 2) {
           this.devToolsOpen = true;
           this.devToolsDetected = true;
-          this.pauseExecution(); // PAUSE THE GAME
+          this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
         }
         return 'devtools-check';
       }
     });
     
-    // Trigger the getter periodically
+    // Trigger the getter periodically (lightweight check)
     this.checkInterval = setInterval(() => {
       console.log('%c', element);
       console.clear();
@@ -162,9 +175,6 @@ class AntiCheat {
     // Method 2: Window size detection (more conservative thresholds)
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
-    
-    // Method 3: Firebug check (older method but reliable)
-    this.checkFirebug();
   }
   
   checkWindowSize() {
@@ -176,19 +186,8 @@ class AntiCheat {
     if (widthThreshold && heightThreshold) {
       this.devToolsOpen = true;
       this.devToolsDetected = true;
-      this.pauseExecution(); // PAUSE THE GAME
+      this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
     }
-  }
-  
-  checkFirebug() {
-    // Check for Firebug (old but works for some browsers)
-    setInterval(() => {
-      if (window.Firebug && window.Firebug.chrome && window.Firebug.chrome.isInitialized) {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        this.pauseExecution(); // PAUSE THE GAME
-      }
-    }, 500);
   }
   
   // Pause execution to prevent data.json fetching
@@ -199,19 +198,13 @@ class AntiCheat {
     // Start DOM scrambling
     this.scrambleDOM();
     
-    // Infinite loop that freezes the page
-    // This prevents any network requests from completing
-    const freeze = () => {
-      while (true) {
-        debugger; // This creates an infinite pause
-      }
-    };
-    
-    // Start the freeze
-    freeze();
+    // DON'T do infinite loop - too laggy
+    // Instead just mark as detected and ban on guess
+    console.log('%c🚫 DevTools detected - you will be banned if you submit a guess 🚫', 
+                'color: red; font-size: 24px; font-weight: bold;');
   }
   
-  // Protect console from being used
+  // Protect console from being used (only when DevTools detected)
   protectConsole() {
     // Override all console methods to spam anti-cheat messages
     const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug'];
@@ -219,28 +212,15 @@ class AntiCheat {
     methods.forEach(method => {
       const original = console[method];
       console[method] = (...args) => {
-        // Spam anti-cheat messages
-        for (let i = 0; i < 50; i++) {
+        // Spam anti-cheat messages (reduced amount)
+        for (let i = 0; i < 20; i++) {
           original.call(console, '%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
         }
         console.clear();
         
-        // Mark as detected
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        
         return original.apply(console, args);
       };
     });
-    
-    // Also override console.clear to prevent them from clearing spam
-    const originalClear = console.clear;
-    console.clear = () => {
-      // Immediately refill with spam
-      for (let i = 0; i < 100; i++) {
-        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      }
-    };
   }
   
   preventDebugger() {
