@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Beatdle - Daily Beat Saber Song Game</title>
   <meta name="description" content="Guess the Beat Saber song from an audio preview. A new song every day!">
-  <link rel="stylesheet" href="style.css?v=2.0.6">
+  <link rel="stylesheet" href="style.css?v=2.1.0">
 </head>
 <body>
  
@@ -282,6 +282,8 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="main.js?v=2.0.6"></script>
+  <!-- Anti-Cheat Protection - Must load BEFORE main.js -->
+  <script src="anti-cheat.js?v=2.1.0"></script>
+  <script src="main.js?v=2.1.0"></script>
 </body>
 </html>
