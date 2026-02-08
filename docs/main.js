@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.1.5";
+const APP_VERSION = "2.1.6";
 
 // DOM Elements
 const audio = document.getElementById("audio");
