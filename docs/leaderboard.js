@@ -1,188 +1,237 @@
-const express = require('express');
-const cors = require('cors');
-const { Redis } = require('@upstash/redis');
+// Leaderboard API Configuration
+// IMPORTANT: Replace this with your Render API URL after deployment
+const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+// Leaderboard State
+let leaderboardData = [];
+let currentUsername = localStorage.getItem('beatdle-username') || '';
 
-app.use(cors({ origin: '*', methods: ['GET', 'POST', 'DELETE', 'OPTIONS'] }));
-app.use(express.json());
-
-// Force JSON on all responses
-app.use((req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
-
-const LEADERBOARD_KEY = 'leaderboard:global';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
-
-// Startup checks
-if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-  console.error('MISSING UPSTASH REDIS URL OR TOKEN — EXITING');
-  process.exit(1);
+// Initialize leaderboard
+function initLeaderboard() {
+  // Set username input if exists
+  const usernameInput = document.getElementById('username-input');
+  if (usernameInput && currentUsername) {
+    usernameInput.value = currentUsername;
+  }
+  
+  // Load leaderboard on page load
+  loadLeaderboard();
 }
 
-console.log('Redis client initialized');
-
-// ────────────────────────────────────────────────
-// GET /api/leaderboard
-// ────────────────────────────────────────────────
-app.get('/api/leaderboard', async (req, res) => {
+// Load leaderboard from API
+async function loadLeaderboard() {
   try {
-    const entries = await redis.zrange(LEADERBOARD_KEY, 0, 99, {
-      rev: true,
-      withscores: true,
-    });
+    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`);
+    const result = await response.json();
+    
+    if (result.success) {
+      leaderboardData = result.data;
+      updateLeaderboardDisplay();
+    } else {
+      console.error('Failed to load leaderboard:', result.message);
+    }
+  } catch (error) {
+    console.error('Error loading leaderboard:', error);
+    showToast('Failed to load leaderboard. Check your API URL.');
+  }
+}
 
-    const leaderboard = [];
-    for (let i = 0; i < entries.length; i += 2) {
-      const username = entries[i];
-      const score = Number(entries[i + 1]);
-      const info = await redis.hgetall(`user:${username}:info`);
-
-      leaderboard.push({
-        username,
-        score,
-        date: info?.date || null,
-        rank: Math.floor(i / 2) + 1,
+// Update leaderboard display
+function updateLeaderboardDisplay() {
+  const leaderboardList = document.getElementById('leaderboard-list');
+  if (!leaderboardList) return;
+  
+  leaderboardList.innerHTML = '';
+  
+  if (leaderboardData.length === 0) {
+    leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
+    return;
+  }
+  
+  leaderboardData.forEach((entry, index) => {
+    const row = document.createElement('div');
+    row.className = 'leaderboard-row';
+    
+    // Highlight current user
+    if (entry.username.toLowerCase() === currentUsername.toLowerCase()) {
+      row.classList.add('current-user');
+    }
+    
+    // Medal for top 3
+    let medal = '';
+    if (index === 0) medal = '🥇';
+    else if (index === 1) medal = '🥈';
+    else if (index === 2) medal = '🥉';
+    
+    const date = new Date(entry.date);
+    const dateStr = date.toLocaleDateString();
+    
+    row.innerHTML = `
+      <span class="leaderboard-rank">${medal || `#${index + 1}`}</span>
+      <span class="leaderboard-username">${escapeHtml(entry.username)}</span>
+      <span class="leaderboard-score">${entry.score}</span>
+      <span class="leaderboard-date">${dateStr}</span>
+      ${isAdminMode() ? `<button class="leaderboard-delete" data-id="${entry.id}">🗑️</button>` : ''}
+    `;
+    
+    leaderboardList.appendChild(row);
+  });
+  
+  // Add delete button listeners if admin mode
+  if (isAdminMode()) {
+    document.querySelectorAll('.leaderboard-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.dataset.id;
+        deleteLeaderboardEntry(id);
       });
-    }
-
-    res.json({ success: true, data: leaderboard });
-  } catch (err) {
-    console.error('GET leaderboard error:', err.message);
-    res.status(500).json({ success: false, message: 'Failed to fetch leaderboard' });
-  }
-});
-
-// ────────────────────────────────────────────────
-// POST /api/leaderboard
-// ────────────────────────────────────────────────
-app.post('/api/leaderboard', async (req, res) => {
-  try {
-    const { username, score } = req.body;
-
-    if (!username || typeof score !== 'number' || isNaN(score)) {
-      return res.status(400).json({ success: false, message: 'Username (string) and numeric score required' });
-    }
-
-    if (username.length < 3 || username.length > 20) {
-      return res.status(400).json({ success: false, message: 'Username must be 3–20 characters' });
-    }
-
-    const lower = username.toLowerCase().trim();
-    const badWords = ['fuck', 'shit', 'bitch', 'ass', 'damn', 'nigger', 'nigga'];
-    if (badWords.some(w => lower.includes(w))) {
-      return res.status(400).json({ success: false, message: 'Inappropriate username' });
-    }
-
-    const normUsername = username.trim();
-
-    let current = 0;
-    try {
-      const currScore = await redis.zscore(LEADERBOARD_KEY, normUsername);
-      current = currScore ? Number(currScore) : 0;
-    } catch (e) {
-      console.error('Redis zscore failed:', e.message);
-      return res.status(500).json({ success: false, message: 'Database error (check score)' });
-    }
-
-    if (score <= current) {
-      return res.status(400).json({ success: false, message: 'Existing score is higher or equal' });
-    }
-
-    try {
-      await redis.zadd(LEADERBOARD_KEY, score, normUsername);
-    } catch (e) {
-      console.error('Redis zadd failed:', e.message);
-      return res.status(500).json({ success: false, message: 'Database error (save score)' });
-    }
-
-    const date = new Date().toISOString();
-    try {
-      await redis.hset(`user:${normUsername}:info`, { date, originalUsername: username });
-    } catch (e) {
-      console.warn('Redis hset failed (non-critical):', e.message);
-      // continue anyway
-    }
-
-    res.json({
-      success: true,
-      message: current === 0 ? 'Score submitted!' : 'Score updated!',
-      data: { username: normUsername, score, date }
     });
-  } catch (err) {
-    console.error('POST /api/leaderboard full crash:', err.stack);
-    res.status(500).json({ success: false, message: 'Internal server error' });
   }
-});
+}
 
-// ────────────────────────────────────────────────
-// DELETE /api/leaderboard/:username
-// ────────────────────────────────────────────────
-app.delete('/api/leaderboard/:username', async (req, res) => {
+// Submit score to leaderboard
+async function submitToLeaderboard(score) {
+  const usernameInput = document.getElementById('username-input');
+  const username = usernameInput ? usernameInput.value.trim() : currentUsername;
+  
+  if (!username) {
+    showToast('Please enter a username first!');
+    return false;
+  }
+  
+  // Validate username
+  if (username.length < 3 || username.length > 20) {
+    showToast('Username must be 3-20 characters');
+    return false;
+  }
+  
   try {
-    const { username } = req.params;
-    const { adminPassword } = req.body;
-
-    if (adminPassword !== ADMIN_PASSWORD) {
-      return res.status(403).json({ success: false, message: 'Invalid admin password' });
+    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ username, score })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      currentUsername = username;
+      localStorage.setItem('beatdle-username', username);
+      showToast(result.message);
+      loadLeaderboard(); // Refresh leaderboard
+      return true;
+    } else {
+      showToast(result.message || 'Failed to submit score');
+      return false;
     }
-
-    const normUsername = username.trim();
-
-    await redis.zrem(LEADERBOARD_KEY, normUsername);
-    await redis.del(`user:${normUsername}:info`);
-
-    res.json({ success: true, message: 'Entry deleted' });
-  } catch (err) {
-    console.error('DELETE error:', err.message);
-    res.status(500).json({ success: false, message: 'Failed to delete' });
+  } catch (error) {
+    console.error('Error submitting score:', error);
+    showToast('Failed to submit score. Check your API URL.');
+    return false;
   }
-});
+}
 
-// ────────────────────────────────────────────────
-// Debug + Health
-// ────────────────────────────────────────────────
-app.get('/api/debug-redis', async (req, res) => {
+// Delete leaderboard entry (admin only)
+async function deleteLeaderboardEntry(id) {
+  const adminPasswordInput = document.getElementById('admin-password-input');
+  const adminPassword = adminPasswordInput ? adminPasswordInput.value : '';
+  
+  if (!adminPassword) {
+    showToast('Please enter admin password');
+    return;
+  }
+  
+  if (!confirm('Are you sure you want to delete this entry?')) {
+    return;
+  }
+  
   try {
-    await redis.set('health:ping', 'ok', { ex: 60 });
-    const ping = await redis.get('health:ping');
-    const size = await redis.zcard(LEADERBOARD_KEY);
+    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ adminPassword })
+    });
+    
+    const result = await response.json();
+    
+    if (result.success) {
+      showToast('Entry deleted successfully');
+      loadLeaderboard(); // Refresh leaderboard
+    } else {
+      showToast(result.message || 'Failed to delete entry');
+    }
+  } catch (error) {
+    console.error('Error deleting entry:', error);
+    showToast('Failed to delete entry');
+  }
+}
 
-    res.json({
-      success: true,
-      redis: {
-        ping_ok: ping === 'ok',
-        leaderboard_entries: size,
-        env_vars: {
-          url: !!process.env.UPSTASH_REDIS_REST_URL,
-          token: !!process.env.UPSTASH_REDIS_REST_TOKEN,
-          admin: !!ADMIN_PASSWORD
-        }
+// Check if admin mode is active
+function isAdminMode() {
+  const adminPasswordInput = document.getElementById('admin-password-input');
+  return adminPasswordInput && adminPasswordInput.value.length > 0;
+}
+
+// Toggle admin panel
+function toggleAdminPanel() {
+  const adminPanel = document.getElementById('admin-panel');
+  if (adminPanel) {
+    const isVisible = adminPanel.style.display === 'block';
+    adminPanel.style.display = isVisible ? 'none' : 'block';
+    
+    if (!isVisible) {
+      const adminPasswordInput = document.getElementById('admin-password-input');
+      if (adminPasswordInput) {
+        adminPasswordInput.focus();
       }
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    }
   }
-});
+}
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+// Utility function to escape HTML
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 
-// Global fallback error handler (last line before listen)
-app.use((err, req, res, next) => {
-  console.error('GLOBAL ERROR:', err.stack);
-  res.status(500).json({ success: false, message: 'Server crashed — check logs' });
-});
+// Update leaderboard when admin password is entered
+function onAdminPasswordChange() {
+  updateLeaderboardDisplay();
+}
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Show username prompt when game ends in infinite mode
+function showUsernamePrompt() {
+  const usernamePrompt = document.getElementById('username-prompt');
+  if (usernamePrompt) {
+    usernamePrompt.style.display = 'block';
+    const usernameInput = document.getElementById('username-input');
+    if (usernameInput && !usernameInput.value) {
+      usernameInput.focus();
+    }
+  }
+}
+
+// Hide username prompt
+function hideUsernamePrompt() {
+  const usernamePrompt = document.getElementById('username-prompt');
+  if (usernamePrompt) {
+    usernamePrompt.style.display = 'none';
+  }
+}
+
+// Export functions for use in main.js
+if (typeof window !== 'undefined') {
+  window.leaderboardAPI = {
+    init: initLeaderboard,
+    load: loadLeaderboard,
+    submit: submitToLeaderboard,
+    showPrompt: showUsernamePrompt,
+    hidePrompt: hideUsernamePrompt,
+    toggleAdmin: toggleAdminPanel,
+    onAdminPasswordChange: onAdminPasswordChange
+  };
+}
