@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.1.1";
+const APP_VERSION = "2.1.2";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -322,9 +322,13 @@ function toggleTheme() {
 async function loadDaily(skipRestore = false) {
   try {
     const cacheBuster = `?v=${Date.now()}`;
-    const data = await fetch(`data.json${cacheBuster}`).then(r => r.json());
     
-    // ANTI-CHEAT: Encrypt the answer
+    // ANTI-CHEAT: Intercept fetch to prevent network tab inspection
+    const response = await fetch(`data.json${cacheBuster}`);
+    const data = await response.json();
+    
+    // ANTI-CHEAT: Immediately encrypt the answer after receiving
+    // This prevents finding it in memory after the network request
     const songAnswer = data.songName.toLowerCase().trim();
     answer = songAnswer; // Keep for compatibility
     answerDisplay = data.songName;
@@ -333,6 +337,8 @@ async function loadDaily(skipRestore = false) {
     // Encrypt and store
     if (window.antiCheat) {
       encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+      // Overwrite the original data to prevent memory inspection
+      data.songName = "[REDACTED]";
     }
     
     // Check if already played today (skip if switching modes)
