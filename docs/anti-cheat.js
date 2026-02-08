@@ -10,6 +10,7 @@ class AntiCheat {
     this.encryptionKey = this.generateKey();
     this.executionPaused = false;
     this.aggressiveActive = false; // Only activate when DevTools detected
+    this.debuggerSpamInterval = null;
     
     this.init();
   }
@@ -56,6 +57,43 @@ class AntiCheat {
     this.protectConsole();
     this.scrambleDOM();
     this.pauseExecution();
+    this.spamDebugger(); // NEW: Aggressive debugger spam
+  }
+  
+  // NEW: Spam debugger statements to freeze DevTools
+  spamDebugger() {
+    // Clear any existing interval
+    if (this.debuggerSpamInterval) {
+      clearInterval(this.debuggerSpamInterval);
+    }
+    
+    // Spam debugger statements every 1ms when DevTools is open
+    // This will keep pausing execution and jumping to this line
+    this.debuggerSpamInterval = setInterval(() => {
+      debugger; // This line will be hit constantly
+      debugger; // Multiple debuggers for extra annoyance
+      debugger;
+      debugger;
+      debugger;
+    }, 1);
+    
+    // Also create immediate recursive debugger spam
+    const recursiveDebugger = () => {
+      if (this.aggressiveActive) {
+        debugger;
+        setTimeout(recursiveDebugger, 0);
+      }
+    };
+    recursiveDebugger();
+    
+    // Create multiple parallel debugger loops
+    for (let i = 0; i < 5; i++) {
+      setInterval(() => {
+        if (this.aggressiveActive) {
+          debugger;
+        }
+      }, 1);
+    }
   }
   
   // Aggressively spam console and clear it
@@ -68,20 +106,17 @@ class AntiCheat {
       console.clear();
     }, 100);
     
-    // Spam debugger less frequently
-    setInterval(() => {
-      debugger;
-    }, 100);
-    
     // Override window eval to prevent code execution
     window.eval = function() {
       console.log('%c🚫 ANTI-CHEAT: eval() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+      debugger; // Freeze on eval attempt
       return null;
     };
     
     // Override Function constructor
     window.Function = function() {
       console.log('%c🚫 ANTI-CHEAT: Function() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+      debugger; // Freeze on Function attempt
       return function() {};
     };
   }
@@ -175,6 +210,9 @@ class AntiCheat {
     // Method 2: Window size detection (more conservative thresholds)
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
+    
+    // Method 3: Performance timing detection
+    this.checkPerformanceTiming();
   }
   
   checkWindowSize() {
@@ -190,6 +228,22 @@ class AntiCheat {
     }
   }
   
+  // Check if debugger pauses execution (DevTools must be open)
+  checkPerformanceTiming() {
+    setInterval(() => {
+      const start = performance.now();
+      debugger; // This will only pause if DevTools is open
+      const end = performance.now();
+      
+      // If this took more than 100ms, DevTools is open and paused execution
+      if (end - start > 100) {
+        this.devToolsOpen = true;
+        this.devToolsDetected = true;
+        this.activateAggressiveMeasures();
+      }
+    }, 1000);
+  }
+  
   // Pause execution to prevent data.json fetching
   pauseExecution() {
     if (this.executionPaused) return; // Already paused
@@ -198,8 +252,6 @@ class AntiCheat {
     // Start DOM scrambling
     this.scrambleDOM();
     
-    // DON'T do infinite loop - too laggy
-    // Instead just mark as detected and ban on guess
     console.log('%c🚫 DevTools detected - you will be banned if you submit a guess 🚫', 
                 'color: red; font-size: 24px; font-weight: bold;');
   }
@@ -217,6 +269,9 @@ class AntiCheat {
           original.call(console, '%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
         }
         console.clear();
+        
+        // Trigger debugger on console use
+        debugger;
         
         return original.apply(console, args);
       };
@@ -240,6 +295,7 @@ class AntiCheat {
         e.preventDefault();
         e.stopPropagation();
         this.devToolsDetected = true;
+        this.activateAggressiveMeasures();
         return false;
       }
     });
@@ -370,6 +426,10 @@ class AntiCheat {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
     }
+    if (this.debuggerSpamInterval) {
+      clearInterval(this.debuggerSpamInterval);
+    }
+    this.aggressiveActive = false;
   }
 }
 
