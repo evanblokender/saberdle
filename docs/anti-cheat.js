@@ -65,13 +65,20 @@ class AntiCheat {
   
   // Multiple methods to detect DevTools
   startDevToolsDetection() {
-    // Method 1: Console detection via toString override
+    // Method 1: Console detection via element inspection
+    // This only triggers when console is ACTUALLY open and inspecting objects
     const element = new Image();
+    let consoleOpenCount = 0;
+    
     Object.defineProperty(element, 'id', {
       get: () => {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        return 'devtools-detected';
+        consoleOpenCount++;
+        // Only mark as detected after multiple triggers to avoid false positives
+        if (consoleOpenCount > 2) {
+          this.devToolsOpen = true;
+          this.devToolsDetected = true;
+        }
+        return 'devtools-check';
       }
     });
     
@@ -81,90 +88,43 @@ class AntiCheat {
       console.clear();
     }, 1000);
     
-    // Method 2: Window size detection
+    // Method 2: Window size detection (more conservative thresholds)
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
     
-    // Method 3: Performance timing detection
-    this.checkPerformance();
-    
-    // Method 4: Debugger detection
-    this.checkDebugger();
+    // Method 3: Firebug check (older method but reliable)
+    this.checkFirebug();
   }
   
   checkWindowSize() {
-    const widthThreshold = window.outerWidth - window.innerWidth > 160;
-    const heightThreshold = window.outerHeight - window.innerHeight > 160;
+    // More conservative thresholds to avoid false positives
+    const widthThreshold = window.outerWidth - window.innerWidth > 200;
+    const heightThreshold = window.outerHeight - window.innerHeight > 200;
     
-    if (widthThreshold || heightThreshold) {
+    // Only flag if BOTH conditions are suspicious
+    if (widthThreshold && heightThreshold) {
       this.devToolsOpen = true;
       this.devToolsDetected = true;
     }
   }
   
-  checkPerformance() {
-    const start = performance.now();
-    debugger; // This will pause if DevTools is open
-    const end = performance.now();
-    
-    if (end - start > 100) {
-      this.devToolsOpen = true;
-      this.devToolsDetected = true;
-    }
-    
-    setTimeout(() => this.checkPerformance(), 2000);
-  }
-  
-  checkDebugger() {
-    const check = () => {
-      const start = new Date();
-      debugger;
-      const end = new Date();
-      if (end - start > 100) {
+  checkFirebug() {
+    // Check for Firebug (old but works for some browsers)
+    setInterval(() => {
+      if (window.Firebug && window.Firebug.chrome && window.Firebug.chrome.isInitialized) {
         this.devToolsOpen = true;
         this.devToolsDetected = true;
       }
-    };
-    
-    setInterval(check, 1000);
+    }, 500);
   }
   
   // Protect console from being used
   protectConsole() {
-    // Override console methods with warnings
-    const originalLog = console.log;
-    const originalDir = console.dir;
-    const originalInfo = console.info;
-    
-    const self = this;
-    
-    console.log = function(...args) {
-      self.devToolsOpen = true;
-      self.devToolsDetected = true;
-      return originalLog.apply(console, args);
-    };
-    
-    console.dir = function(...args) {
-      self.devToolsOpen = true;
-      self.devToolsDetected = true;
-      return originalDir.apply(console, args);
-    };
-    
-    console.info = function(...args) {
-      self.devToolsOpen = true;
-      self.devToolsDetected = true;
-      return originalInfo.apply(console, args);
-    };
+    // We rely on the element.id getter trick instead of overriding console methods
+    // This prevents false positives from normal console usage in the page
   }
   
   preventDebugger() {
-    // Disable right-click
-    document.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      this.devToolsDetected = true;
-      return false;
-    });
-    
     // Detect F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
     document.addEventListener('keydown', (e) => {
       if (
