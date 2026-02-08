@@ -1,377 +1,321 @@
-// Anti-Cheat Protection System
-// Detects DevTools usage and bans cheaters
-
 class AntiCheat {
   constructor() {
-    this.devToolsOpen = false;
     this.devToolsDetected = false;
     this.bannedUntil = null;
+    this.fingerprint = this.generateFingerprint();
     this.checkInterval = null;
-    this.encryptionKey = this.generateKey();
-    this.executionPaused = false;
-    this.aggressiveActive = false; // Only activate when DevTools detected
-    
+    this.aggressiveActive = false;
+    this.sensitiveDataProxied = false;
+
     this.init();
   }
-  
+
   init() {
-    // Check if already banned
     this.checkBanStatus();
-    
+
     if (this.isBanned()) {
       this.showBanScreen();
       return;
     }
-    
-    // Block context menu immediately
+
     this.blockContextMenu();
-    
-    // Start monitoring for DevTools (lightweight detection)
+    this.blockDevToolsShortcuts();
     this.startDevToolsDetection();
-    
-    // Monitor for common cheating attempts
-    this.preventDebugger();
-    
-    // DON'T start aggressive measures until DevTools detected
-    // This prevents lag for normal users
+    this.preventCommonCheatTools();
+    this.hideSensitiveGlobals();
   }
-  
-  // Block right-click context menu
-  blockContextMenu() {
-    document.addEventListener('contextmenu', function(e) {
-      e.preventDefault();
-      return false;
-    });
-  }
-  
-  // Start aggressive measures ONLY when DevTools detected
-  activateAggressiveMeasures() {
-    if (this.aggressiveActive) return; // Already active
-    this.aggressiveActive = true;
-    
-    console.log('DevTools detected - activating aggressive anti-cheat');
-    
-    // Now start the spam and scrambling
-    this.startConsoleSpam();
-    this.protectConsole();
-    this.scrambleDOM();
-    this.pauseExecution();
-  }
-  
-  // Aggressively spam console and clear it
-  startConsoleSpam() {
-    // Reduced from 1ms to 100ms to reduce lag
-    setInterval(() => {
-      for (let i = 0; i < 50; i++) {
-        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      }
-      console.clear();
-    }, 100);
-    
-    // Spam debugger less frequently
-    setInterval(() => {
-      debugger;
-    }, 100);
-    
-    // Override window eval to prevent code execution
-    window.eval = function() {
-      console.log('%c🚫 ANTI-CHEAT: eval() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      return null;
-    };
-    
-    // Override Function constructor
-    window.Function = function() {
-      console.log('%c🚫 ANTI-CHEAT: Function() BLOCKED 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      return function() {};
-    };
-  }
-  
-  // Scramble DOM when DevTools detected
-  // Source - https://stackoverflow.com/a/65102393
-  // Posted by Diego Fortes, modified by community
-  // Retrieved 2026-02-07, License - CC BY-SA 4.0
-  scrambleDOM() {
-    // Reduced from 5ms to 500ms to reduce lag
-    setInterval(() => {
-      var $all = document.querySelectorAll("*");
-      for (var each of $all) {
-        each.classList.add(`asdjaljsdliasud8ausdijaisdluasdjasildahjdsk${Math.random()}`);
-      }
-    }, 500);
-  }
-  
-  // Generate encryption key from session
-  generateKey() {
-    const seed = Date.now().toString() + navigator.userAgent;
+
+  generateFingerprint() {
+    const data = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      new Date().getTimezoneOffset(),
+      !!window.chrome,
+      navigator.hardwareConcurrency || 0
+    ].join('|');
     let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
+    for (let i = 0; i < data.length; i++) {
+      hash = ((hash << 5) - hash) + data.charCodeAt(i);
+      hash |= 0;
     }
     return Math.abs(hash).toString(36);
   }
-  
-  // Simple encryption for answer
-  encrypt(text) {
-    let result = '';
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const keyChar = this.encryptionKey.charCodeAt(i % this.encryptionKey.length);
-      result += String.fromCharCode(charCode ^ keyChar);
-    }
-    return btoa(result); // Base64 encode
+
+  blockContextMenu() {
+    document.addEventListener('contextmenu', e => e.preventDefault(), { capture: true });
   }
-  
-  decrypt(encrypted) {
-    const decoded = atob(encrypted);
-    let result = '';
-    for (let i = 0; i < decoded.length; i++) {
-      const charCode = decoded.charCodeAt(i);
-      const keyChar = this.encryptionKey.charCodeAt(i % this.encryptionKey.length);
-      result += String.fromCharCode(charCode ^ keyChar);
-    }
-    return result;
+
+  blockDevToolsShortcuts() {
+    document.addEventListener('keydown', e => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+        (e.ctrlKey && e.key === 'u' || e.key === 'U')
+      ) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        this.devToolsDetected = true;
+        this.activateAggressiveMeasures();
+      }
+    }, { capture: true });
   }
-  
-  // Encrypt JSON data for network protection
-  encryptJSON(obj) {
-    const jsonString = JSON.stringify(obj);
-    return this.encrypt(jsonString);
-  }
-  
-  // Decrypt JSON data
-  decryptJSON(encrypted) {
-    const jsonString = this.decrypt(encrypted);
-    return JSON.parse(jsonString);
-  }
-  
-  // Multiple methods to detect DevTools
+
   startDevToolsDetection() {
-    // Method 1: Console detection via element inspection
-    // This only triggers when console is ACTUALLY open and inspecting objects
-    const element = new Image();
-    let consoleOpenCount = 0;
-    
-    Object.defineProperty(element, 'id', {
+    this.detectViaSize();
+    this.detectViaConsoleTrick();
+    this.detectViaTiming();
+
+    window.addEventListener('resize', () => this.detectViaSize());
+    this.checkInterval = setInterval(() => {
+      this.detectViaSize();
+      this.detectViaTiming();
+    }, 800);
+  }
+
+  detectViaSize() {
+    const deltaOuterInnerW = window.outerWidth - window.innerWidth;
+    const deltaOuterInnerH = window.outerHeight - window.innerHeight;
+    if (
+      (deltaOuterInnerW > 150 && deltaOuterInnerH > 150) ||
+      (deltaOuterInnerW > 300 || deltaOuterInnerH > 300)
+    ) {
+      this.devToolsDetected = true;
+      this.activateAggressiveMeasures();
+    }
+  }
+
+  detectViaConsoleTrick() {
+    const testObj = {};
+    let triggerCount = 0;
+
+    Object.defineProperty(testObj, 'prop', {
       get: () => {
-        consoleOpenCount++;
-        // Only mark as detected after multiple triggers to avoid false positives
-        if (consoleOpenCount > 2) {
-          this.devToolsOpen = true;
+        triggerCount++;
+        if (triggerCount >= 3) {
           this.devToolsDetected = true;
-          this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
+          this.activateAggressiveMeasures();
         }
-        return 'devtools-check';
+        return 42;
       }
     });
-    
-    // Trigger the getter periodically (lightweight check)
-    this.checkInterval = setInterval(() => {
-      console.log('%c', element);
+
+    setInterval(() => {
+      console.log(testObj.prop);
       console.clear();
-    }, 1000);
-    
-    // Method 2: Window size detection (more conservative thresholds)
-    this.checkWindowSize();
-    window.addEventListener('resize', () => this.checkWindowSize());
+    }, 1200);
   }
-  
-  checkWindowSize() {
-    // More conservative thresholds to avoid false positives
-    const widthThreshold = window.outerWidth - window.innerWidth > 200;
-    const heightThreshold = window.outerHeight - window.innerHeight > 200;
-    
-    // Only flag if BOTH conditions are suspicious
-    if (widthThreshold && heightThreshold) {
-      this.devToolsOpen = true;
+
+  detectViaTiming() {
+    const start = performance.now();
+    debugger;
+    const end = performance.now();
+
+    if (end - start > 40) {
       this.devToolsDetected = true;
-      this.activateAggressiveMeasures(); // Activate spam/scramble/freeze
+      this.activateAggressiveMeasures();
     }
   }
-  
-  // Pause execution to prevent data.json fetching
-  pauseExecution() {
-    if (this.executionPaused) return; // Already paused
-    this.executionPaused = true;
-    
-    // Start DOM scrambling
+
+  activateAggressiveMeasures() {
+    if (this.aggressiveActive) return;
+    this.aggressiveActive = true;
+
+    this.startHeavyConsoleSpam();
+    this.protectConsoleMethods();
     this.scrambleDOM();
-    
-    // DON'T do infinite loop - too laggy
-    // Instead just mark as detected and ban on guess
-    console.log('%c🚫 DevTools detected - you will be banned if you submit a guess 🚫', 
-                'color: red; font-size: 24px; font-weight: bold;');
+    this.banOnNextInteraction();
   }
-  
-  // Protect console from being used (only when DevTools detected)
-  protectConsole() {
-    // Override all console methods to spam anti-cheat messages
-    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug'];
-    
-    methods.forEach(method => {
-      const original = console[method];
-      console[method] = (...args) => {
-        // Spam anti-cheat messages (reduced amount)
-        for (let i = 0; i < 20; i++) {
-          original.call(console, '%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
+
+  startHeavyConsoleSpam() {
+    setInterval(() => {
+      for (let i = 0; i < 80; i++) {
+        console.log('%cANTI-CHEAT TRIGGERED — CHEATING DETECTED', 'color:#f00;font-size:22px;font-weight:bold;background:#000;padding:6px');
+      }
+      console.clear();
+    }, 80);
+
+    setInterval(() => { debugger; }, 300);
+  }
+
+  protectConsoleMethods() {
+    const methods = ['log','info','warn','error','debug','table','dir','dirxml','trace'];
+    methods.forEach(m => {
+      const orig = console[m];
+      console[m] = (...args) => {
+        for (let i = 0; i < 30; i++) {
+          orig.call(console, '%cCHEAT DETECTED — CLOSE DEVTOOLS', 'color:red;font-size:18px');
         }
         console.clear();
-        
-        return original.apply(console, args);
+        return orig.apply(console, args);
       };
     });
+
+    const origEval = window.eval;
+    window.eval = code => {
+      console.warn('eval blocked by anti-cheat');
+      return null;
+    };
+
+    const origFunc = window.Function;
+    window.Function = function(...args) {
+      console.warn('Function constructor blocked by anti-cheat');
+      return function() { return null; };
+    };
   }
-  
-  preventDebugger() {
-    // Detect F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+U
-    document.addEventListener('keydown', (e) => {
-      // F12
-      if (e.key === 'F12' ||
-          e.keyCode === 123 ||
-          // Ctrl+Shift+I (Inspect)
-          (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
-          // Ctrl+Shift+J (Console)
-          (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
-          // Ctrl+Shift+C (Inspect element)
-          (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
-          // Ctrl+U (View source)
-          (e.ctrlKey && e.keyCode === 85)) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.devToolsDetected = true;
-        return false;
+
+  scrambleDOM() {
+    setInterval(() => {
+      document.querySelectorAll('*').forEach(el => {
+        el.className += ` x-${Math.random().toString(36).slice(2)}`;
+      });
+    }, 600);
+  }
+
+  hideSensitiveGlobals() {
+    if (this.sensitiveDataProxied) return;
+    this.sensitiveDataProxied = true;
+
+    const sensitiveNames = ['answer', 'solution', 'correctAnswer', 'gameAnswer', 'currentAnswer', 'flag'];
+
+    sensitiveNames.forEach(name => {
+      let realValue = window[name];
+      delete window[name];
+
+      Object.defineProperty(window, name, {
+        get: () => {
+          this.devToolsDetected = true;
+          this.activateAggressiveMeasures();
+          return 'CHEAT_DETECTED';
+        },
+        set: () => {},
+        configurable: false
+      });
+
+      if (realValue !== undefined) {
+        window[`_${name}_hidden`] = realValue;
       }
     });
+
+    const originalJSON = JSON.stringify;
+    JSON.stringify = (obj, ...args) => {
+      if (obj && typeof obj === 'object') {
+        sensitiveNames.forEach(name => {
+          if (obj[name]) obj[name] = 'REDACTED_BY_ANTICHEAT';
+        });
+      }
+      return originalJSON.call(JSON, obj, ...args);
+    };
   }
-  
-  // Check if user is banned
+
+  banOnNextInteraction() {
+    const banHandler = () => {
+      this.banUser();
+      document.removeEventListener('click', banHandler);
+      document.removeEventListener('keydown', banHandler);
+    };
+    document.addEventListener('click', banHandler, { once: true, capture: true });
+    document.addEventListener('keydown', banHandler, { once: true, capture: true });
+  }
+
   checkBanStatus() {
-    const banData = this.getCookie('beatdle_ban');
+    let banData = this.getCookie('beatdle_ban') || localStorage.getItem('beatdle_ban_' + this.fingerprint);
+
     if (banData) {
       try {
         const data = JSON.parse(atob(banData));
         this.bannedUntil = new Date(data.until);
-      } catch (e) {
-        // Invalid ban cookie, remove it
-        this.deleteCookie('beatdle_ban');
+      } catch {
+        this.clearBan();
       }
     }
   }
-  
+
   isBanned() {
     if (!this.bannedUntil) return false;
-    
     const now = new Date();
-    if (now < this.bannedUntil) {
-      return true;
-    } else {
-      // Ban expired
-      this.deleteCookie('beatdle_ban');
-      this.bannedUntil = null;
-      return false;
-    }
+    if (now < this.bannedUntil) return true;
+
+    this.clearBan();
+    return false;
   }
-  
-  // Ban the user (7 days)
+
   banUser() {
     const banUntil = new Date();
-    banUntil.setDate(banUntil.getDate() + 7); // 7 day ban
-    
+    banUntil.setDate(banUntil.getDate() + 7);
+
     const banData = {
       until: banUntil.toISOString(),
-      reason: 'cheating_detected'
+      reason: 'devtools_usage',
+      fp: this.fingerprint
     };
-    
-    this.setCookie('beatdle_ban', btoa(JSON.stringify(banData)), 7);
+
+    const encoded = btoa(JSON.stringify(banData));
+
+    this.setCookie('beatdle_ban', encoded, 7);
+    localStorage.setItem('beatdle_ban_' + this.fingerprint, encoded);
+
     this.bannedUntil = banUntil;
     this.showBanScreen();
   }
-  
-  // Show ban screen
+
+  clearBan() {
+    this.deleteCookie('beatdle_ban');
+    localStorage.removeItem('beatdle_ban_' + this.fingerprint);
+    this.bannedUntil = null;
+  }
+
   showBanScreen() {
     document.body.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 999999;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      ">
-        <div style="
-          background: white;
-          padding: 40px;
-          border-radius: 20px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-          text-align: center;
-          max-width: 500px;
-        ">
-          <div style="font-size: 72px; margin-bottom: 20px;">🚫</div>
-          <h1 style="color: #e74c3c; margin: 0 0 20px 0; font-size: 32px;">lolz you cheated</h1>
-          <p style="color: #555; font-size: 18px; margin-bottom: 20px;">
-            We detected that you opened DevTools/Inspector while playing.
+      <div style="position:fixed;inset:0;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;z-index:999999;font-family:system-ui;">
+        <div style="background:white;padding:50px;border-radius:24px;box-shadow:0 25px 70px rgba(0,0,0,0.4);text-align:center;max-width:520px;">
+          <div style="font-size:80px;margin-bottom:24px;">⛔</div>
+          <h1 style="color:#c0392b;margin:0 0 24px;font-size:36px;">Cheating Detected</h1>
+          <p style="color:#444;font-size:19px;margin-bottom:24px;">
+            Developer Tools usage was detected during gameplay.
           </p>
-          <p style="color: #333; font-size: 16px; margin-bottom: 30px;">
-            <strong>You are banned from Beatdle for 7 days.</strong>
+          <p style="color:#222;font-size:17px;font-weight:bold;margin-bottom:32px;">
+            7-day ban active — expires ${this.bannedUntil ? this.bannedUntil.toLocaleString() : '???'}
           </p>
-          <p style="color: #777; font-size: 14px;">
-            Ban expires: ${this.bannedUntil ? this.bannedUntil.toLocaleString() : 'Unknown'}
-          </p>
-          <p style="color: #999; font-size: 12px; margin-top: 30px;">
-            Play fair next time! 🎵
+          <p style="color:#777;font-size:15px;">
+            Play fair. See you soon.
           </p>
         </div>
       </div>
     `;
-    
-    // Prevent any interaction
     document.body.style.overflow = 'hidden';
   }
-  
-  // Check on guess submission
-  checkOnGuess() {
-    if (this.devToolsDetected) {
-      this.banUser();
-      return false; // Block the guess
-    }
-    return true; // Allow the guess
-  }
-  
-  // Cookie helpers
+
   setCookie(name, value, days) {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
+    const d = new Date();
+    d.setTime(d.getTime() + days * 86400000);
+    document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Strict;Secure`;
   }
-  
+
   getCookie(name) {
-    const nameEQ = name + "=";
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-      let c = ca[i];
-      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
+    const prefix = name + "=";
+    for (const c of document.cookie.split(';')) {
+      let trimmed = c.trim();
+      if (trimmed.startsWith(prefix)) return trimmed.substring(prefix.length);
     }
     return null;
   }
-  
+
   deleteCookie(name) {
     document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
   }
-  
-  // Clean up
+
+  preventCommonCheatTools() {
+    setInterval(() => {
+      if (window.console && console.clear && console.log.length === 0) {
+        this.devToolsDetected = true;
+      }
+    }, 2000);
+  }
+
   destroy() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-    }
+    if (this.checkInterval) clearInterval(this.checkInterval);
   }
 }
 
-// Initialize anti-cheat globally
 window.antiCheat = new AntiCheat();
