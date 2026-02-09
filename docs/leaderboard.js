@@ -1,4 +1,4 @@
-const LEADERBOARD_API_URL = 'https:
+const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com
 let leaderboardData = [];
 let currentUsername = localStorage.getItem('beatdle-username') || '';
 function initLeaderboard() {
