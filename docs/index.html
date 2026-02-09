@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="style.css?v=2.3.2">
 </head>
 <body>
- 
   <header class="header">
     <div class="header-content">
       <h1 class="logo">🎵 Beatdle</h1>
@@ -34,10 +33,7 @@
     stroke-linecap="round"
     stroke-linejoin="round"
   >
-    <!-- Center button -->
     <circle cx="12" cy="12" r="2" />
-
-    <!-- D-pad -->
     <line x1="12" y1="3" x2="12" y2="8" />
     <line x1="12" y1="16" x2="12" y2="21" />
     <line x1="3" y1="12" x2="8" y2="12" />
@@ -67,11 +63,8 @@
       </div>
     </div>
   </header>
-
-
   <main class="container">
     <div class="game-card">
-
       <div class="game-info">
         <div class="info-item">
           <span class="info-label">Mode</span>
@@ -90,8 +83,6 @@
           <span class="info-value" id="infinite-score">0</span>
         </div>
       </div>
-
-
       <audio id="audio"></audio>
       <div class="player-section">
         <button id="play-btn" class="play-button">
@@ -100,8 +91,6 @@
           </svg>
           <span>Play Preview</span>
         </button>
-        
-
         <div class="progress-wrapper">
           <div class="progress-container">
             <div id="progress-bar" class="progress-bar"></div>
@@ -112,8 +101,6 @@
             <span id="total-time">0:03</span>
           </div>
         </div>
-
-
         <div class="visualizer">
           <div class="bar"></div>
           <div class="bar"></div>
@@ -125,8 +112,6 @@
           <div class="bar"></div>
         </div>
       </div>
-
-
       <button id="skip-btn" class="skip-button">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M5 4l10 8-10 8V4z"></path>
@@ -134,8 +119,6 @@
         </svg>
         Skip (+2s preview)
       </button>
-
-
       <div class="input-section">
         <div class="input-wrapper">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -152,11 +135,7 @@
         </div>
         <div id="autocomplete-results" class="autocomplete-results"></div>
       </div>
-
-      
       <div id="guesses-container" class="guesses-container"></div>
-
-
       <div id="game-over" class="game-over hidden">
         <div class="result-message" id="result-message"></div>
         <button id="share-btn" class="share-button">
@@ -184,8 +163,6 @@
       </div>
     </div>
   </main>
-
-
   <div id="help-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -194,7 +171,6 @@
       </div>
       <div class="modal-body">
         <p>Guess the Beat Saber song from an audio preview!</p>
-        
         <div class="instruction">
           <div class="instruction-icon">🎵</div>
           <div>
@@ -202,7 +178,6 @@
             <p>Start with a 3-second clip of the song</p>
           </div>
         </div>
-
         <div class="instruction">
           <div class="instruction-icon">🔍</div>
           <div>
@@ -210,7 +185,6 @@
             <p>Type to search for ranked Beat Saber songs</p>
           </div>
         </div>
-
         <div class="instruction">
           <div class="instruction-icon">⏭️</div>
           <div>
@@ -218,7 +192,6 @@
             <p>Each skip or wrong guess adds 2 seconds to the preview</p>
           </div>
         </div>
-
         <div class="instruction">
           <div class="instruction-icon">🎯</div>
           <div>
@@ -226,13 +199,10 @@
             <p>You have 6 attempts to guess the song correctly!</p>
           </div>
         </div>
-
         <p class="note">A new song is available every day at 1 AM EST</p>
       </div>
     </div>
   </div>
-
-
   <div id="stats-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -258,14 +228,11 @@
             <div class="stat-label">Max Streak</div>
           </div>
         </div>
-
         <h3>Guess Distribution</h3>
         <div class="distribution" id="distribution"></div>
       </div>
     </div>
   </div>
-
-
   <div id="mode-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -288,8 +255,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Leaderboard Modal -->
   <div id="leaderboard-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -315,7 +280,6 @@
             Admin
           </button>
         </div>
-
         <div id="admin-panel" class="admin-panel" style="display: none;">
           <input 
             type="password" 
@@ -326,7 +290,6 @@
           />
           <p class="admin-note">Enter admin password to delete entries</p>
         </div>
-
         <div class="leaderboard-header">
           <span class="leaderboard-col">Rank</span>
           <span class="leaderboard-col">Username</span>
@@ -339,8 +302,6 @@
       </div>
     </div>
   </div>
-
-  <!-- Username Prompt (shown when infinite game ends) -->
   <div id="username-prompt" class="username-prompt" style="display: none;">
     <div class="username-prompt-content">
       <h3>Submit to Leaderboard</h3>
@@ -358,11 +319,7 @@
       </div>
     </div>
   </div>
-
-
   <div id="toast" class="toast"></div>
-
-  <!-- Anti-Cheat Protection - Must load BEFORE main.js or else bad shit will happen (i learnt that the hard way)-->
   <script src="anti-cheat.js?v=2.3.2"></script>
   <script src="leaderboard.js?v=2.3.2"></script>
   <script src="main.js?v=2.3.2"></script>
@@ -375,7 +332,6 @@
       const toggleAdminBtn = document.getElementById('toggle-admin-btn');
       const submitScoreBtn = document.getElementById('submit-score-btn');
       const skipSubmitBtn = document.getElementById('skip-submit-btn');
-
       if (leaderboardBtn) {
         leaderboardBtn.addEventListener('click', () => {
           if (leaderboardModal) {
@@ -387,20 +343,17 @@
           }
         });
       }
-
       if (refreshBtn && window.leaderboardAPI) {
         refreshBtn.addEventListener('click', () => {
           window.leaderboardAPI.load();
           showToast('Leaderboard refreshed!');
         });
       }
-
       if (toggleAdminBtn && window.leaderboardAPI) {
         toggleAdminBtn.addEventListener('click', () => {
           window.leaderboardAPI.toggleAdmin();
         });
       }
-
       if (submitScoreBtn && window.leaderboardAPI) {
         submitScoreBtn.addEventListener('click', async () => {
           const score = infiniteScore;
@@ -410,13 +363,11 @@
           }
         });
       }
-
       if (skipSubmitBtn && window.leaderboardAPI) {
         skipSubmitBtn.addEventListener('click', () => {
           window.leaderboardAPI.hidePrompt();
         });
       }
-
       // Close leaderboard modal
       const leaderboardClose = leaderboardModal?.querySelector('.modal-close');
       if (leaderboardClose) {
@@ -425,7 +376,6 @@
           document.body.classList.remove('modal-open');
         });
       }
-
       // Update score display in username prompt
       if (typeof infiniteScore !== 'undefined') {
         const scoreDisplay = document.getElementById('score-display');
