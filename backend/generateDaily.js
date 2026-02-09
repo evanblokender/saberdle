@@ -1,7 +1,7 @@
 import fs from "fs";
 import fetch from "node-fetch";
 
-// 🔥 TRUE RANDOM — no seed, no determinism
+// 🔥 TRUE RANDOM — no seed, no determinism yea chatgpt i know what this does, you dont need to fucking remind me.
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
