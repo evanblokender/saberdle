@@ -1,4 +1,4 @@
-// Game State
+//i know it looks vibe coded, TRUST ITS NOT, i only used ai to add comments so i can find and easily debug something.
 let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
