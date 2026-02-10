@@ -18,44 +18,39 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.3.5";
+const APP_VERSION = "2.3.6";
 
-// DOM Elements - Initialize after DOM is ready
-let audio, playBtn, skipBtn, progressBar, currentTimeEl, totalTimeEl, guessInput, autocompleteResults, guessesContainer, gameOverDiv, resultMessage, shareBtn, countdownEl, attemptsCount, previewTimeDisplay, visualizer, modeBtn, resetBtn, infiniteScoreEl;
-let helpBtn, statsBtn, themeBtn, helpModal, statsModal, modeModal, toast;
+// DOM Elements
+const audio = document.getElementById("audio");
+const playBtn = document.getElementById("play-btn");
+const skipBtn = document.getElementById("skip-btn");
+const progressBar = document.getElementById("progress-bar");
+const currentTimeEl = document.getElementById("current-time");
+const totalTimeEl = document.getElementById("total-time");
+const guessInput = document.getElementById("guess-input");
+const autocompleteResults = document.getElementById("autocomplete-results");
+const guessesContainer = document.getElementById("guesses-container");
+const gameOverDiv = document.getElementById("game-over");
+const resultMessage = document.getElementById("result-message");
+const shareBtn = document.getElementById("share-btn");
+const countdownEl = document.getElementById("countdown");
+const attemptsCount = document.getElementById("attempts-count");
+const previewTimeDisplay = document.getElementById("preview-time");
+const visualizer = document.querySelector(".visualizer");
+const modeBtn = document.getElementById("mode-btn");
+const resetBtn = document.getElementById("reset-btn");
+const infiniteScoreEl = document.getElementById("infinite-score");
 
-function initDOMElements() {
-  audio = document.getElementById("audio");
-  playBtn = document.getElementById("play-btn");
-  skipBtn = document.getElementById("skip-btn");
-  progressBar = document.getElementById("progress-bar");
-  currentTimeEl = document.getElementById("current-time");
-  totalTimeEl = document.getElementById("total-time");
-  guessInput = document.getElementById("guess-input");
-  autocompleteResults = document.getElementById("autocomplete-results");
-  guessesContainer = document.getElementById("guesses-container");
-  gameOverDiv = document.getElementById("game-over");
-  resultMessage = document.getElementById("result-message");
-  shareBtn = document.getElementById("share-btn");
-  countdownEl = document.getElementById("countdown");
-  attemptsCount = document.getElementById("attempts-count");
-  previewTimeDisplay = document.getElementById("preview-time");
-  visualizer = document.querySelector(".visualizer");
-  modeBtn = document.getElementById("mode-btn");
-  resetBtn = document.getElementById("reset-btn");
-  infiniteScoreEl = document.getElementById("infinite-score");
-  
-  helpBtn = document.getElementById("help-btn");
-  statsBtn = document.getElementById("stats-btn");
-  themeBtn = document.getElementById("theme-btn");
-  helpModal = document.getElementById("help-modal");
-  statsModal = document.getElementById("stats-modal");
-  modeModal = document.getElementById("mode-modal");
-  toast = document.getElementById("toast");
-}
+// Modal Elements
+const helpBtn = document.getElementById("help-btn");
+const statsBtn = document.getElementById("stats-btn");
+const themeBtn = document.getElementById("theme-btn");
+const helpModal = document.getElementById("help-modal");
+const statsModal = document.getElementById("stats-modal");
+const modeModal = document.getElementById("mode-modal");
+const toast = document.getElementById("toast");
 
 function init() {
-  initDOMElements();
   checkVersion();
   loadTheme();
   loadGameMode();
@@ -860,19 +855,21 @@ function setupEventListeners() {
   skipBtn.addEventListener("click", skipGuess);
   
   // Input
-  guessInput.addEventListener("input", handleInput);
-  guessInput.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && autocompleteResults.children.length > 0) {
-      const firstResult = autocompleteResults.children[0];
-      if (firstResult.textContent !== "No ranked songs found") {
-        firstResult.click();
+  if (guessInput) {
+    guessInput.addEventListener("input", handleInput);
+    guessInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && autocompleteResults && autocompleteResults.children.length > 0) {
+        const firstResult = autocompleteResults.children[0];
+        if (firstResult.textContent !== "No ranked songs found") {
+          firstResult.click();
+        }
       }
-    }
-  });
+    });
+  }
   
   // Close autocomplete on click outside
   document.addEventListener("click", (e) => {
-    if (!guessInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
+    if (guessInput && autocompleteResults && !guessInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
       autocompleteResults.innerHTML = "";
     }
   });
