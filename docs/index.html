@@ -297,7 +297,7 @@
           <span class="leaderboard-col">Date</span>
         </div>
         <div id="leaderboard-list" class="leaderboard-list">
-          <div class="leaderboard-loading">Loading, This is taking longer then expected, authenticating...</div>
+          <div class="leaderboard-loading">Loading leaderboard...</div>
         </div>
       </div>
     </div>
@@ -324,7 +324,6 @@
   <script src="leaderboard.js?v=2.3.2"></script>
   <script src="main.js?v=2.3.2"></script>
   <script>
-    // Leaderboard event listeners
     document.addEventListener('DOMContentLoaded', () => {
       const leaderboardBtn = document.getElementById('leaderboard-btn');
       const leaderboardModal = document.getElementById('leaderboard-modal');
@@ -332,6 +331,7 @@
       const toggleAdminBtn = document.getElementById('toggle-admin-btn');
       const submitScoreBtn = document.getElementById('submit-score-btn');
       const skipSubmitBtn = document.getElementById('skip-submit-btn');
+      
       if (leaderboardBtn) {
         leaderboardBtn.addEventListener('click', () => {
           if (leaderboardModal) {
@@ -343,32 +343,36 @@
           }
         });
       }
+      
       if (refreshBtn && window.leaderboardAPI) {
         refreshBtn.addEventListener('click', () => {
           window.leaderboardAPI.load();
-          showToast('Leaderboard refreshed!');
+          showToast('Refreshing leaderboard...');
         });
       }
+      
       if (toggleAdminBtn && window.leaderboardAPI) {
         toggleAdminBtn.addEventListener('click', () => {
           window.leaderboardAPI.toggleAdmin();
         });
       }
+      
       if (submitScoreBtn && window.leaderboardAPI) {
         submitScoreBtn.addEventListener('click', async () => {
-          const score = infiniteScore;
+          const score = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
           const success = await window.leaderboardAPI.submit(score);
           if (success) {
             window.leaderboardAPI.hidePrompt();
           }
         });
       }
+      
       if (skipSubmitBtn && window.leaderboardAPI) {
         skipSubmitBtn.addEventListener('click', () => {
           window.leaderboardAPI.hidePrompt();
         });
       }
-      // Close leaderboard modal
+      
       const leaderboardClose = leaderboardModal?.querySelector('.modal-close');
       if (leaderboardClose) {
         leaderboardClose.addEventListener('click', () => {
@@ -376,12 +380,12 @@
           document.body.classList.remove('modal-open');
         });
       }
-      // Update score display in username prompt
+      
       if (typeof infiniteScore !== 'undefined') {
         const scoreDisplay = document.getElementById('score-display');
         if (scoreDisplay) {
           setInterval(() => {
-            scoreDisplay.textContent = infiniteScore;
+            scoreDisplay.textContent = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
           }, 100);
         }
       }
