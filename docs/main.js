@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.3.2";
+const APP_VERSION = "2.3.5";
 
 // DOM Elements - Initialize after DOM is ready
 let audio, playBtn, skipBtn, progressBar, currentTimeEl, totalTimeEl, guessInput, autocompleteResults, guessesContainer, gameOverDiv, resultMessage, shareBtn, countdownEl, attemptsCount, previewTimeDisplay, visualizer, modeBtn, resetBtn, infiniteScoreEl;
