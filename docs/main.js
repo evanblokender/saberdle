@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.3.6";
+const APP_VERSION = "2.3.2";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -49,6 +49,9 @@ const helpModal = document.getElementById("help-modal");
 const statsModal = document.getElementById("stats-modal");
 const modeModal = document.getElementById("mode-modal");
 const toast = document.getElementById("toast");
+
+// Initialize
+init();
 
 function init() {
   checkVersion();
@@ -255,188 +258,330 @@ async function loadInfiniteMode() {
       updateInfiniteScoreDisplay();
     } else {
       // If no songs found on this page, try page 0 as fallback
-      console.log("No songs found on page " + randomPage + ", trying page 0");
+      console.log("No songs on random page, trying page 0");
       const fallbackResponse = await fetch(
         `https://api.beatsaver.com/search/text/0?sortOrder=Rating&ranked=true`
       );
       const fallbackData = await fallbackResponse.json();
+      
       if (fallbackData.docs && fallbackData.docs.length > 0) {
         const randomSong = fallbackData.docs[Math.floor(Math.random() * fallbackData.docs.length)];
         currentInfiniteSong = randomSong;
+        
+        // ANTI-CHEAT: Encrypt the answer
         const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
         answer = songAnswer;
         answerDisplay = randomSong.metadata.songName;
         
         if (window.antiCheat) {
           encryptedAnswer = window.antiCheat.encrypt(songAnswer);
-          console.log(`Selected song: [ENCRYPTED]`);
         }
         
         if (randomSong.versions && randomSong.versions.length > 0) {
-          const previewURL = randomSong.versions[0].previewURL;
-          audio.src = previewURL;
+          audio.src = randomSong.versions[0].previewURL;
           audio.currentTime = 0;
           updateTimeDisplay();
         }
+        
+        const savedScore = localStorage.getItem("beatdle-infinite-score");
+        infiniteScore = savedScore ? parseInt(savedScore) : 0;
+        updateInfiniteScoreDisplay();
       }
     }
   } catch (error) {
-    console.error("Error loading infinite mode:", error);
-    showToast("Error loading song. Please try again.");
+    console.error("Failed to load infinite mode song:", error);
+    showToast("Failed to load song. Please try again.");
   }
 }
 
-// Next Infinite Song
-async function nextInfiniteSong() {
+function updateInfiniteScoreDisplay() {
+  if (infiniteScoreEl) {
+    infiniteScoreEl.textContent = infiniteScore;
+  }
+}
+
+function saveInfiniteScore() {
+  localStorage.setItem("beatdle-infinite-score", infiniteScore.toString());
+}
+
+function nextInfiniteSong() {
   resetGame();
-  await loadInfiniteMode();
-}
-
-// Load Daily Challenge
-async function loadDaily(skipRestore = false) {
-  const now = new Date();
-  const estDate = new Date(now.getTime() + (-5 - now.getTimezoneOffset()) * 60000);
-  const todayStr = estDate.toISOString().split('T')[0];
-  
-  const savedGameState = localStorage.getItem(`beatdle-${todayStr}`);
-  
-  if (savedGameState && !skipRestore) {
-    try {
-      const state = JSON.parse(savedGameState);
-      
-      dailyDate = todayStr;
-      attempts = state.attempts;
-      gameOver = state.gameOver;
-      answer = state.answer;
-      answerDisplay = state.answerDisplay;
-      encryptedAnswer = state.encryptedAnswer || state.answer;
-      
-      guessesContainer.innerHTML = '';
-      state.guesses.forEach(guessData => {
-        addGuess(guessData.text, guessData.type);
-      });
-      
-      updateAttemptsDisplay();
-      
-      if (gameOver) {
-        gameOverDiv.classList.remove("hidden");
-        if (state.won) {
-          resultMessage.textContent = `🎉 Correct! The song was: ${answerDisplay}`;
-          resultMessage.className = "result-message win";
-        } else {
-          resultMessage.textContent = `😔 Sorry, you failed! The song was: ${answerDisplay}`;
-          resultMessage.className = "result-message lose";
-        }
-        playBtn.disabled = true;
-        skipBtn.disabled = true;
-        guessInput.disabled = true;
-      }
-      
-      audio.src = state.audioURL;
-      audio.currentTime = 0;
-      updateTimeDisplay();
-      
-      console.log(`Restored game state for ${todayStr}`);
-    } catch (error) {
-      console.error("Error restoring game state:", error);
-    }
-  }
-  
-  if (!gameOver) {
-    try {
-      const response = await fetch('data.json');
-      const songData = await response.json();
-      
-      const songAnswer = songData.songName.toLowerCase().trim();
-      answer = songAnswer;
-      answerDisplay = songData.songName;
-      dailyDate = todayStr;
-      
-      if (window.antiCheat) {
-        encryptedAnswer = window.antiCheat.encrypt(songAnswer);
-        console.log(`Today's song: [ENCRYPTED]`);
-      } else {
-        console.log(`Today's song: ${answerDisplay}`);
-      }
-      
-      audio.src = songData.previewURL;
-      audio.currentTime = 0;
-      updateTimeDisplay();
-    } catch (error) {
-      console.error("Error loading daily song:", error);
-      showToast("Error loading today's song. Please try again later.");
-    }
-  }
+  loadInfiniteMode();
 }
 
 // Theme Management
 function loadTheme() {
-  const theme = localStorage.getItem('beatdle-theme') || 'light';
-  document.documentElement.setAttribute('data-theme', theme);
+  const theme = localStorage.getItem("beatdle-theme") || "dark";
+  document.body.setAttribute("data-theme", theme);
 }
 
 function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('beatdle-theme', newTheme);
+  const current = document.body.getAttribute("data-theme");
+  const newTheme = current === "dark" ? "light" : "dark";
+  document.body.setAttribute("data-theme", newTheme);
+  localStorage.setItem("beatdle-theme", newTheme);
+  showToast(`Switched to ${newTheme} theme`);
 }
 
-// Audio Functions
-function playPreview() {
-  if (!audio.src) {
-    showToast("Song audio not loaded yet");
-    return;
+// Load Daily Song
+async function loadDaily(skipRestore = false) {
+  try {
+    const cacheBuster = `?v=${Date.now()}`;
+    
+    // Load from data.json instead of API
+    const response = await fetch(`data.json${cacheBuster}`);
+    const data = await response.json();
+    
+    // ANTI-CHEAT: Immediately encrypt the answer after receiving
+    const songAnswer = data.songName.toLowerCase().trim();
+    answer = songAnswer;
+    answerDisplay = data.songName;
+    dailyDate = data.date;
+    
+    // Encrypt and store
+    if (window.antiCheat) {
+      encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+      data.songName = "[REDACTED]";
+    }
+    
+    // Check if already played today (skip if switching modes)
+    if (!skipRestore) {
+      const gameState = loadGameState();
+      if (gameState && gameState.date === dailyDate && gameState.completed) {
+        try {
+          restoreGameState(gameState);
+          return;
+        } catch (error) {
+          console.log("Error restoring old game state, clearing...", error);
+          localStorage.removeItem(`beatdle-${dailyDate}`);
+          showToast("Old game state cleared. Please replay today's song!");
+        }
+      }
+    }
+    
+    // Load audio
+    audio.src = data.previewURL;
+    audio.currentTime = 0;
+    updateTimeDisplay();
+  } catch (error) {
+    console.error("Failed to load daily song:", error);
+    showToast("Failed to load today's song. Please refresh.");
   }
+}
+
+// Game State Management
+function loadGameState() {
+  if (gameMode === "infinite") return null;
+  
+  const key = `beatdle-${dailyDate}`;
+  const saved = localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : null;
+}
+
+function saveGameState() {
+  if (gameMode === "infinite") return;
+  
+  const key = `beatdle-${dailyDate}`;
+  const state = {
+    date: dailyDate,
+    attempts: attempts,
+    previewTime: previewTime,
+    guesses: Array.from(guessesContainer.children).map(el => {
+      const textEl = el.querySelector('.guess-text');
+      const text = textEl ? textEl.textContent : el.textContent.substring(2);
+      return {
+        text: text,
+        type: el.classList.contains("correct") ? "correct" : 
+              el.classList.contains("skip") ? "skip" : "incorrect"
+      };
+    }),
+    completed: gameOver,
+    won: gameOver && resultMessage.classList.contains("win"),
+    migrated: true
+  };
+  localStorage.setItem(key, JSON.stringify(state));
+}
+
+function restoreGameState(state) {
+  try {
+    attempts = state.attempts;
+    previewTime = state.previewTime;
+    gameOver = state.completed;
+    
+    state.guesses.forEach(guess => {
+      addGuess(guess.text, guess.type);
+    });
+    
+    updateAttemptsDisplay();
+    updateTimeDisplay();
+    
+    if (state.completed) {
+      endGame(state.won);
+    }
+  } catch (error) {
+    console.error("Error restoring game state:", error);
+    throw error;
+  }
+}
+
+// Statistics Management
+function loadStats() {
+  const defaultStats = {
+    played: 0,
+    wins: 0,
+    currentStreak: 0,
+    maxStreak: 0,
+    distribution: [0, 0, 0, 0, 0, 0],
+    lastPlayedDate: null
+  };
+  const saved = localStorage.getItem("beatdle-stats");
+  return saved ? JSON.parse(saved) : defaultStats;
+}
+
+function saveStats(won, guessCount) {
+  if (gameMode === "infinite") return;
+  
+  const stats = loadStats();
+  
+  if (stats.lastPlayedDate !== dailyDate) {
+    stats.played++;
+    stats.lastPlayedDate = dailyDate;
+    
+    if (won) {
+      stats.wins++;
+      stats.currentStreak++;
+      stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+      stats.distribution[guessCount - 1]++;
+    } else {
+      stats.currentStreak = 0;
+    }
+    
+    localStorage.setItem("beatdle-stats", JSON.stringify(stats));
+  }
+}
+
+function displayStats() {
+  const stats = loadStats();
+  document.getElementById("stat-played").textContent = stats.played;
+  document.getElementById("stat-wins").textContent = stats.wins;
+  document.getElementById("stat-streak").textContent = stats.currentStreak;
+  document.getElementById("stat-max-streak").textContent = stats.maxStreak;
+  
+  const distributionEl = document.getElementById("distribution");
+  distributionEl.innerHTML = "";
+  
+  const maxCount = Math.max(...stats.distribution, 1);
+  stats.distribution.forEach((count, index) => {
+    const bar = document.createElement("div");
+    bar.className = "distribution-bar";
+    
+    const label = document.createElement("div");
+    label.className = "distribution-label";
+    label.textContent = index + 1;
+    
+    const fill = document.createElement("div");
+    fill.className = "distribution-fill";
+    
+    const inner = document.createElement("div");
+    inner.className = "distribution-inner";
+    inner.style.width = `${(count / maxCount) * 100}%`;
+    inner.textContent = count;
+    
+    fill.appendChild(inner);
+    bar.appendChild(label);
+    bar.appendChild(fill);
+    distributionEl.appendChild(bar);
+  });
+}
+
+// Reset Game
+function resetGame() {
+  attempts = 0;
+  previewTime = 3;
+  gameOver = false;
+  isPlaying = false;
+  
+  guessesContainer.innerHTML = "";
+  
+  playBtn.disabled = false;
+  skipBtn.disabled = false;
+  guessInput.disabled = false;
+  guessInput.value = "";
+  
+  gameOverDiv.classList.add("hidden");
+  
+  updateAttemptsDisplay();
+  updateTimeDisplay();
+  
+  progressBar.style.width = "0%";
+  currentTimeEl.textContent = "0:00";
+}
+
+// Time Formatting
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
+}
+
+function updateTimeDisplay() {
+  totalTimeEl.textContent = formatTime(previewTime);
+  previewTimeDisplay.textContent = `${previewTime}s`;
+}
+
+function updateAttemptsDisplay() {
+  attemptsCount.textContent = `${attempts}/${maxAttempts}`;
+}
+
+// Audio Playback
+function playPreview() {
+  if (isPlaying || gameOver) return;
   
   audio.currentTime = 0;
-  audio.play().catch(err => console.error("Play error:", err));
-  isPlaying = true;
-  updatePlayButtonState();
+  const playPromise = audio.play();
   
-  // Animate visualizer
-  if (visualizer) {
-    visualizer.classList.add('active');
-  }
-  
-  previewInterval = setInterval(() => {
-    updateProgressBar();
-    if (audio.currentTime >= previewTime) {
-      audio.pause();
-      isPlaying = false;
-      updatePlayButtonState();
-      clearInterval(previewInterval);
-      if (visualizer) {
-        visualizer.classList.remove('active');
-      }
-      progressBar.style.width = '0%';
-    }
-  }, 100);
-}
-
-function updateProgressBar() {
-  if (audio && audio.duration) {
-    const percent = (audio.currentTime / previewTime) * 100;
-    progressBar.style.width = Math.min(percent, 100) + '%';
-    currentTimeEl.textContent = formatTime(audio.currentTime);
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      isPlaying = true;
+      playBtn.classList.add("playing");
+      visualizer.classList.add("active");
+      
+      const startTime = Date.now();
+      previewInterval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const progress = Math.min((elapsed / previewTime) * 100, 100);
+        
+        progressBar.style.width = `${progress}%`;
+        currentTimeEl.textContent = formatTime(elapsed);
+        
+        if (elapsed >= previewTime) {
+          stopPreview();
+        }
+      }, 50);
+    }).catch(() => {
+      showToast("Unable to play audio. Please try again.");
+    });
   }
 }
 
-function updatePlayButtonState() {
-  if (isPlaying) {
-    playBtn.classList.add('playing');
-  } else {
-    playBtn.classList.remove('playing');
-  }
+function stopPreview() {
+  audio.pause();
+  isPlaying = false;
+  playBtn.classList.remove("playing");
+  visualizer.classList.remove("active");
+  clearInterval(previewInterval);
+  progressBar.style.width = "100%";
+  currentTimeEl.textContent = formatTime(previewTime);
 }
 
+// Skip
 function skipGuess() {
   if (gameOver) return;
   
-  addGuess("Skipped", "skip");
   attempts++;
-  updateAttemptsDisplay();
   previewTime += 2;
+  addGuess("Skip", "skip");
+  updateAttemptsDisplay();
   updateTimeDisplay();
   
   if (attempts >= maxAttempts) {
@@ -448,225 +593,53 @@ function skipGuess() {
   saveGameState();
 }
 
-// Update Time Display
-function updateTimeDisplay() {
-  if (audio.duration) {
-    totalTimeEl.textContent = formatTime(Math.min(previewTime, audio.duration));
-  } else {
-    totalTimeEl.textContent = formatTime(previewTime);
-  }
-}
-
-function formatTime(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-// Update Attempts Display
-function updateAttemptsDisplay() {
-  attemptsCount.textContent = `${attempts}/${maxAttempts}`;
-}
-
-// Update Infinite Score Display
-function updateInfiniteScoreDisplay() {
-  if (infiniteScoreEl) {
-    infiniteScoreEl.textContent = infiniteScore;
-  }
-  const scoreDisplay = document.getElementById("score-display");
-  if (scoreDisplay) {
-    scoreDisplay.textContent = infiniteScore;
-  }
-}
-
-// Save Infinite Score
-function saveInfiniteScore() {
-  localStorage.setItem("beatdle-infinite-score", infiniteScore);
-}
-
-// Save Game State (daily only)
-function saveGameState() {
-  if (gameMode !== "daily") return;
+// Autocomplete
+let autocompleteTimeout;
+async function handleInput() {
+  const query = guessInput.value.trim();
   
-  const guessData = Array.from(guessesContainer.children).map(el => ({
-    text: el.querySelector('.guess-text').textContent,
-    type: el.className.match(/(correct|incorrect|skip)/)?.[0] || 'incorrect'
-  }));
+  clearTimeout(autocompleteTimeout);
   
-  const state = {
-    attempts,
-    gameOver,
-    guesses: guessData,
-    answer,
-    answerDisplay,
-    encryptedAnswer,
-    audioURL: audio.src,
-    won: resultMessage.classList.contains('win'),
-    migrated: true
-  };
-  
-  localStorage.setItem(`beatdle-${dailyDate}`, JSON.stringify(state));
-}
-
-// Stats Management
-function saveStats(won, guessCount) {
-  let stats = JSON.parse(localStorage.getItem('beatdle-stats') || '{}');
-  
-  stats.played = (stats.played || 0) + 1;
-  stats.wins = (stats.wins || 0) + (won ? 1 : 0);
-  stats.lastPlayed = dailyDate;
-  
-  // Streak logic
-  const now = new Date();
-  const estDate = new Date(now.getTime() + (-5 - now.getTimezoneOffset()) * 60000);
-  const todayStr = estDate.toISOString().split('T')[0];
-  
-  if (won) {
-    if (stats.lastWon === todayStr) {
-      // Already counted today's win
-    } else if (stats.lastWon) {
-      // Check if last win was yesterday
-      const lastDate = new Date(stats.lastWon + 'T00:00:00Z');
-      const yesterday = new Date(todayStr + 'T00:00:00Z');
-      yesterday.setDate(yesterday.getDate() - 1);
-      
-      if (lastDate.toISOString().split('T')[0] === yesterday.toISOString().split('T')[0]) {
-        stats.streak = (stats.streak || 0) + 1;
-      } else {
-        stats.streak = 1;
-      }
-    } else {
-      stats.streak = 1;
-    }
-    stats.lastWon = todayStr;
-    stats.maxStreak = Math.max(stats.maxStreak || 0, stats.streak || 0);
-  } else {
-    stats.streak = 0;
-  }
-  
-  // Guess distribution (only for wins)
-  if (won) {
-    if (!stats.distribution) stats.distribution = {};
-    const bucket = Math.min(guessCount, maxAttempts);
-    stats.distribution[bucket] = (stats.distribution[bucket] || 0) + 1;
-  }
-  
-  localStorage.setItem('beatdle-stats', JSON.stringify(stats));
-}
-
-function displayStats() {
-  const stats = JSON.parse(localStorage.getItem('beatdle-stats') || '{}');
-  
-  document.getElementById('stat-played').textContent = stats.played || 0;
-  document.getElementById('stat-wins').textContent = stats.wins || 0;
-  document.getElementById('stat-streak').textContent = stats.streak || 0;
-  document.getElementById('stat-max-streak').textContent = stats.maxStreak || 0;
-  
-  // Display guess distribution
-  const distribution = document.getElementById('distribution');
-  distribution.innerHTML = '';
-  
-  for (let i = 1; i <= maxAttempts; i++) {
-    const count = stats.distribution?.[i] || 0;
-    const row = document.createElement('div');
-    row.className = 'distribution-row';
-    
-    const label = document.createElement('span');
-    label.className = 'distribution-label';
-    label.textContent = i === maxAttempts ? `${i}` : `${i}`;
-    
-    const bar = document.createElement('div');
-    bar.className = 'distribution-bar';
-    bar.style.width = count > 0 ? (count / (stats.wins || 1) * 100) + '%' : '0%';
-    bar.textContent = count > 0 ? count : '';
-    
-    row.appendChild(label);
-    row.appendChild(bar);
-    distribution.appendChild(row);
-  }
-}
-
-// Reset Game (for switching modes or next song)
-function resetGame() {
-  attempts = 0;
-  gameOver = false;
-  isPlaying = false;
-  guessesContainer.innerHTML = '';
-  gameOverDiv.classList.add("hidden");
-  resultMessage.textContent = '';
-  guessInput.disabled = false;
-  guessInput.value = '';
-  autocompleteResults.innerHTML = '';
-  playBtn.disabled = false;
-  skipBtn.disabled = false;
-  previewTime = 3;
-  updateTimeDisplay();
-  updateAttemptsDisplay();
-  
-  // Stop audio and reset visualizer
-  if (audio) {
-    audio.pause();
-    audio.currentTime = 0;
-  }
-  clearInterval(previewInterval);
-  isPlaying = false;
-  updatePlayButtonState();
-  
-  if (visualizer) {
-    visualizer.classList.remove('active');
-  }
-  progressBar.style.width = '0%';
-}
-
-// Handle Input
-async function handleInput(e) {
-  const query = e.target.value.trim();
-  
-  if (!autocompleteResults) return;
-  
-  if (query.length === 0) {
-    autocompleteResults.innerHTML = '';
+  if (query.length < 2) {
+    autocompleteResults.innerHTML = "";
     return;
   }
   
-  try {
-    const response = await fetch(`https://api.beatsaver.com/search/text/${query}?sortOrder=Rating&ranked=true`);
-    const data = await response.json();
-    
-    autocompleteResults.innerHTML = '';
-    
-    if (data.docs && data.docs.length > 0) {
-      data.docs.slice(0, 5).forEach(song => {
-        const item = document.createElement('div');
-        item.className = 'autocomplete-item';
-        item.textContent = song.metadata.songName;
-        item.addEventListener('click', () => {
-          submitGuess(song.metadata.songName);
-        });
-        autocompleteResults.appendChild(item);
-      });
-    } else {
-      const item = document.createElement('div');
-      item.className = 'autocomplete-item disabled';
-      item.textContent = 'No ranked songs found';
-      autocompleteResults.appendChild(item);
+  autocompleteTimeout = setTimeout(async () => {
+    try {
+      const response = await fetch(
+        `https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(query)}&ranked=true`
+      );
+      const data = await response.json();
+      
+      displayAutocomplete(data.docs.slice(0, 5));
+    } catch (error) {
+      console.error("Autocomplete error:", error);
     }
-  } catch (error) {
-    console.error('Search error:', error);
-  }
+  }, 300);
 }
 
-// Display search results
-function displayResults(results) {
-  autocompleteResults.innerHTML = '';
+function displayAutocomplete(songs) {
+  autocompleteResults.innerHTML = "";
   
-  results.forEach(result => {
-    const item = document.createElement('div');
-    item.className = 'autocomplete-item';
-    item.textContent = result;
-    item.addEventListener('click', () => {
-      submitGuess(result);
-    });
+  if (songs.length === 0) {
+    const noResults = document.createElement("div");
+    noResults.className = "autocomplete-item";
+    noResults.textContent = "No ranked songs found";
+    noResults.style.cursor = "default";
+    autocompleteResults.appendChild(noResults);
+    return;
+  }
+  
+  songs.forEach(song => {
+    const item = document.createElement("div");
+    item.className = "autocomplete-item";
+    
+    const songName = song.metadata.songName;
+    const artist = song.metadata.songAuthorName;
+    
+    item.innerHTML = `<strong>${songName}</strong><br><small style="color: var(--text-muted)">${artist}</small>`;
+    item.onclick = () => submitGuess(songName);
     
     autocompleteResults.appendChild(item);
   });
@@ -678,7 +651,7 @@ function submitGuess(songName) {
   
   // ANTI-CHEAT: Check if DevTools was opened before allowing guess
   if (window.antiCheat && !window.antiCheat.checkOnGuess()) {
-    return; // User is banned, don't process guess
+    return;
   }
   
   guessInput.value = "";
@@ -730,18 +703,15 @@ function addGuess(text, type) {
 function endGame(won) {
   gameOver = true;
   
-  // Disable inputs
   playBtn.disabled = true;
   skipBtn.disabled = true;
   
-  // Show result
   gameOverDiv.classList.remove("hidden");
   
   if (won) {
     resultMessage.textContent = `🎉 Correct! The song was: ${answerDisplay}`;
     resultMessage.className = "result-message win";
     
-    // Update infinite score
     if (gameMode === "infinite") {
       infiniteScore++;
       saveInfiniteScore();
@@ -752,18 +722,15 @@ function endGame(won) {
     resultMessage.className = "result-message lose";
   }
   
-  // Update stats (daily mode only)
   if (gameMode === "daily") {
     const guessCount = won ? attempts : maxAttempts;
     saveStats(won, guessCount);
     saveGameState();
   }
   
-  // Show reset button in infinite mode
   if (gameMode === "infinite") {
     resetBtn.style.display = "block";
     
-    // Show leaderboard submission prompt for BOTH wins and losses
     if (window.leaderboardAPI) {
       window.leaderboardAPI.showPrompt();
     }
@@ -803,17 +770,13 @@ function shareResult() {
 function updateCountdown() {
   const now = new Date();
   
-  // Get next midnight EST (UTC-5)
-  // Convert current time to EST
-  const estOffset = -5 * 60; // EST is UTC-5 hours in minutes
+  const estOffset = -5 * 60;
   const nowEST = new Date(now.getTime() + (estOffset + now.getTimezoneOffset()) * 60 * 1000);
   
-  // Get next midnight EST
   const tomorrow = new Date(nowEST);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   
-  // Convert back to local time for accurate countdown
   const nextMidnightEST = new Date(tomorrow.getTime() - (estOffset + now.getTimezoneOffset()) * 60 * 1000);
   
   const diff = nextMidnightEST - now;
@@ -850,46 +813,37 @@ function closeModal(modal) {
 
 // Event Listeners
 function setupEventListeners() {
-  // Playback
   playBtn.addEventListener("click", playPreview);
   skipBtn.addEventListener("click", skipGuess);
   
-  // Input
-  if (guessInput) {
-    guessInput.addEventListener("input", handleInput);
-    guessInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && autocompleteResults && autocompleteResults.children.length > 0) {
-        const firstResult = autocompleteResults.children[0];
-        if (firstResult.textContent !== "No ranked songs found") {
-          firstResult.click();
-        }
+  guessInput.addEventListener("input", handleInput);
+  guessInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && autocompleteResults.children.length > 0) {
+      const firstResult = autocompleteResults.children[0];
+      if (firstResult.textContent !== "No ranked songs found") {
+        firstResult.click();
       }
-    });
-  }
+    }
+  });
   
-  // Close autocomplete on click outside
   document.addEventListener("click", (e) => {
-    if (guessInput && autocompleteResults && !guessInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
+    if (!guessInput.contains(e.target) && !autocompleteResults.contains(e.target)) {
       autocompleteResults.innerHTML = "";
     }
   });
   
-  // Share
   shareBtn.addEventListener("click", shareResult);
   
-  // Mode switching
   if (modeBtn) {
     modeBtn.addEventListener("click", () => openModal(modeModal));
   }
   
-  // Reset button (infinite mode)
   if (resetBtn) {
     resetBtn.addEventListener("click", () => {
       nextInfiniteSong();
     });
   }
   
-  // Mode selection buttons
   document.querySelectorAll(".mode-option").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const mode = e.currentTarget.dataset.mode;
@@ -897,12 +851,10 @@ function setupEventListeners() {
     });
   });
   
-  // Modals
   helpBtn.addEventListener("click", () => openModal(helpModal));
   statsBtn.addEventListener("click", () => openModal(statsModal));
   themeBtn.addEventListener("click", toggleTheme);
   
-  // Close modals
   document.querySelectorAll(".modal-close").forEach(btn => {
     btn.addEventListener("click", (e) => {
       const modal = e.target.closest(".modal");
@@ -910,7 +862,6 @@ function setupEventListeners() {
     });
   });
   
-  // Close modal on background click
   document.querySelectorAll(".modal").forEach(modal => {
     modal.addEventListener("click", (e) => {
       if (e.target === modal) {
@@ -919,7 +870,6 @@ function setupEventListeners() {
     });
   });
   
-  // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       closeModal(helpModal);
@@ -927,11 +877,4 @@ function setupEventListeners() {
       closeModal(modeModal);
     }
   });
-}
-
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
 }
