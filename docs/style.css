@@ -390,6 +390,11 @@ body.modal-open {
   overflow-y: auto;
   box-shadow: 0 8px 24px var(--shadow);
   z-index: 10;
+  min-width: 100%;
+}
+
+.autocomplete-results:empty {
+  display: none;
 }
 
 .autocomplete-item {
@@ -1076,11 +1081,15 @@ body.modal-open {
   opacity: 1;
 }
 
-.leaderboard-empty, .leaderboard-loading {
+.leaderboard-empty, .leaderboard-loading, .leaderboard-error {
   padding: 2rem;
   text-align: center;
   color: var(--text-muted);
   font-style: italic;
+}
+
+.leaderboard-error {
+  color: var(--error);
 }
 
 /* Username Prompt */
@@ -1205,4 +1214,3 @@ body.modal-open {
     justify-content: center;
   }
 }
-
