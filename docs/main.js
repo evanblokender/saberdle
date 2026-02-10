@@ -18,42 +18,44 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.3.4";
+const APP_VERSION = "2.3.2";
 
-// DOM Elements
-const audio = document.getElementById("audio");
-const playBtn = document.getElementById("play-btn");
-const skipBtn = document.getElementById("skip-btn");
-const progressBar = document.getElementById("progress-bar");
-const currentTimeEl = document.getElementById("current-time");
-const totalTimeEl = document.getElementById("total-time");
-const guessInput = document.getElementById("guess-input");
-const autocompleteResults = document.getElementById("autocomplete-results");
-const guessesContainer = document.getElementById("guesses-container");
-const gameOverDiv = document.getElementById("game-over");
-const resultMessage = document.getElementById("result-message");
-const shareBtn = document.getElementById("share-btn");
-const countdownEl = document.getElementById("countdown");
-const attemptsCount = document.getElementById("attempts-count");
-const previewTimeDisplay = document.getElementById("preview-time");
-const visualizer = document.querySelector(".visualizer");
-const modeBtn = document.getElementById("mode-btn");
-const resetBtn = document.getElementById("reset-btn");
-const infiniteScoreEl = document.getElementById("infinite-score");
+// DOM Elements - Initialize after DOM is ready
+let audio, playBtn, skipBtn, progressBar, currentTimeEl, totalTimeEl, guessInput, autocompleteResults, guessesContainer, gameOverDiv, resultMessage, shareBtn, countdownEl, attemptsCount, previewTimeDisplay, visualizer, modeBtn, resetBtn, infiniteScoreEl;
+let helpBtn, statsBtn, themeBtn, helpModal, statsModal, modeModal, toast;
 
-// Modal Elements
-const helpBtn = document.getElementById("help-btn");
-const statsBtn = document.getElementById("stats-btn");
-const themeBtn = document.getElementById("theme-btn");
-const helpModal = document.getElementById("help-modal");
-const statsModal = document.getElementById("stats-modal");
-const modeModal = document.getElementById("mode-modal");
-const toast = document.getElementById("toast");
-
-// Initialize
-init();
+function initDOMElements() {
+  audio = document.getElementById("audio");
+  playBtn = document.getElementById("play-btn");
+  skipBtn = document.getElementById("skip-btn");
+  progressBar = document.getElementById("progress-bar");
+  currentTimeEl = document.getElementById("current-time");
+  totalTimeEl = document.getElementById("total-time");
+  guessInput = document.getElementById("guess-input");
+  autocompleteResults = document.getElementById("autocomplete-results");
+  guessesContainer = document.getElementById("guesses-container");
+  gameOverDiv = document.getElementById("game-over");
+  resultMessage = document.getElementById("result-message");
+  shareBtn = document.getElementById("share-btn");
+  countdownEl = document.getElementById("countdown");
+  attemptsCount = document.getElementById("attempts-count");
+  previewTimeDisplay = document.getElementById("preview-time");
+  visualizer = document.querySelector(".visualizer");
+  modeBtn = document.getElementById("mode-btn");
+  resetBtn = document.getElementById("reset-btn");
+  infiniteScoreEl = document.getElementById("infinite-score");
+  
+  helpBtn = document.getElementById("help-btn");
+  statsBtn = document.getElementById("stats-btn");
+  themeBtn = document.getElementById("theme-btn");
+  helpModal = document.getElementById("help-modal");
+  statsModal = document.getElementById("stats-modal");
+  modeModal = document.getElementById("mode-modal");
+  toast = document.getElementById("toast");
+}
 
 function init() {
+  initDOMElements();
   checkVersion();
   loadTheme();
   loadGameMode();
@@ -625,6 +627,8 @@ function resetGame() {
 async function handleInput(e) {
   const query = e.target.value.trim();
   
+  if (!autocompleteResults) return;
+  
   if (query.length === 0) {
     autocompleteResults.innerHTML = '';
     return;
@@ -734,7 +738,6 @@ function endGame(won) {
   // Disable inputs
   playBtn.disabled = true;
   skipBtn.disabled = true;
-  guessInput.disabled = true;
   
   // Show result
   gameOverDiv.classList.remove("hidden");
@@ -927,4 +930,11 @@ function setupEventListeners() {
       closeModal(modeModal);
     }
   });
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
 }
