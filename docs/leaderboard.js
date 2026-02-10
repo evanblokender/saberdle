@@ -1,4 +1,5 @@
 const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
+const API_TIMEOUT = 5000;
 
 // Leaderboard State
 let leaderboardData = [];
@@ -6,31 +7,48 @@ let currentUsername = localStorage.getItem('beatdle-username') || '';
 
 // Initialize leaderboard
 function initLeaderboard() {
-  // Set username input if exists
   const usernameInput = document.getElementById('username-input');
   if (usernameInput && currentUsername) {
     usernameInput.value = currentUsername;
   }
   
-  // Load leaderboard on page load
   loadLeaderboard();
+}
+
+// Fetch with timeout
+function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUT) {
+  return Promise.race([
+    fetch(url, options),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timeout')), timeout)
+    )
+  ]);
 }
 
 // Load leaderboard from API
 async function loadLeaderboard() {
+  const leaderboardList = document.getElementById('leaderboard-list');
+  
+  if (leaderboardList) {
+    leaderboardList.innerHTML = '<div class="leaderboard-loading">Loading leaderboard...</div>';
+  }
+  
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`);
+    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`);
     const result = await response.json();
     
-    if (result.success) {
-      leaderboardData = result.data;
+    if (result.success && result.data) {
+      leaderboardData = Array.isArray(result.data) ? result.data : [];
       updateLeaderboardDisplay();
     } else {
-      console.error('Failed to load leaderboard:', result.message);
+      if (leaderboardList) {
+        leaderboardList.innerHTML = '<div class="leaderboard-error">Unable to load leaderboard. Please try again later.</div>';
+      }
     }
   } catch (error) {
-    console.error('Error loading leaderboard:', error);
-    showToast('Failed to load leaderboard. Check your API URL.');
+    if (leaderboardList) {
+      leaderboardList.innerHTML = '<div class="leaderboard-error">Connection timeout. Leaderboard unavailable.</div>';
+    }
   }
 }
 
@@ -41,7 +59,7 @@ function updateLeaderboardDisplay() {
   
   leaderboardList.innerHTML = '';
   
-  if (leaderboardData.length === 0) {
+  if (!leaderboardData || leaderboardData.length === 0) {
     leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
     return;
   }
@@ -50,24 +68,21 @@ function updateLeaderboardDisplay() {
     const row = document.createElement('div');
     row.className = 'leaderboard-row';
     
-    // Highlight current user
-    if (entry.username.toLowerCase() === currentUsername.toLowerCase()) {
+    if (entry.username && entry.username.toLowerCase() === currentUsername.toLowerCase()) {
       row.classList.add('current-user');
     }
     
-    // Medal for top 3
     let medal = '';
     if (index === 0) medal = '🥇';
     else if (index === 1) medal = '🥈';
     else if (index === 2) medal = '🥉';
     
-    const date = new Date(entry.date);
-    const dateStr = date.toLocaleDateString();
+    const dateStr = entry.date ? new Date(entry.date).toLocaleDateString() : 'N/A';
     
     row.innerHTML = `
       <span class="leaderboard-rank">${medal || `#${index + 1}`}</span>
-      <span class="leaderboard-username">${escapeHtml(entry.username)}</span>
-      <span class="leaderboard-score">${entry.score}</span>
+      <span class="leaderboard-username">${escapeHtml(entry.username || 'Unknown')}</span>
+      <span class="leaderboard-score">${entry.score || 0}</span>
       <span class="leaderboard-date">${dateStr}</span>
       ${isAdminMode() ? `<button class="leaderboard-delete" data-id="${entry.id}">🗑️</button>` : ''}
     `;
@@ -75,7 +90,6 @@ function updateLeaderboardDisplay() {
     leaderboardList.appendChild(row);
   });
   
-  // Add delete button listeners if admin mode
   if (isAdminMode()) {
     document.querySelectorAll('.leaderboard-delete').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -96,14 +110,13 @@ async function submitToLeaderboard(score) {
     return false;
   }
   
-  // Validate username
   if (username.length < 3 || username.length > 20) {
     showToast('Username must be 3-20 characters');
     return false;
   }
   
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard`, {
+    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -116,16 +129,15 @@ async function submitToLeaderboard(score) {
     if (result.success) {
       currentUsername = username;
       localStorage.setItem('beatdle-username', username);
-      showToast(result.message);
-      loadLeaderboard(); // Refresh leaderboard
+      showToast(result.message || 'Score submitted!');
+      loadLeaderboard();
       return true;
     } else {
       showToast(result.message || 'Failed to submit score');
       return false;
     }
   } catch (error) {
-    console.error('Error submitting score:', error);
-    showToast('Failed to submit score. Check your API URL.');
+    showToast('Connection error. Please try again.');
     return false;
   }
 }
@@ -145,7 +157,7 @@ async function deleteLeaderboardEntry(id) {
   }
   
   try {
-    const response = await fetch(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
+    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
@@ -157,13 +169,12 @@ async function deleteLeaderboardEntry(id) {
     
     if (result.success) {
       showToast('Entry deleted successfully');
-      loadLeaderboard(); // Refresh leaderboard
+      loadLeaderboard();
     } else {
       showToast(result.message || 'Failed to delete entry');
     }
   } catch (error) {
-    console.error('Error deleting entry:', error);
-    showToast('Failed to delete entry');
+    showToast('Connection error. Delete failed.');
   }
 }
 
