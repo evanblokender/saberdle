@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.3.3";
+const APP_VERSION = "2.3.2";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -297,19 +297,16 @@ async function nextInfiniteSong() {
 
 // Load Daily Challenge
 async function loadDaily(skipRestore = false) {
-  // Get today's date in YYYY-MM-DD format
   const now = new Date();
   const estDate = new Date(now.getTime() + (-5 - now.getTimezoneOffset()) * 60000);
   const todayStr = estDate.toISOString().split('T')[0];
   
-  // Check if already attempted today
   const savedGameState = localStorage.getItem(`beatdle-${todayStr}`);
   
   if (savedGameState && !skipRestore) {
     try {
       const state = JSON.parse(savedGameState);
       
-      // Restore game state from saved data
       dailyDate = todayStr;
       attempts = state.attempts;
       gameOver = state.gameOver;
@@ -317,7 +314,6 @@ async function loadDaily(skipRestore = false) {
       answerDisplay = state.answerDisplay;
       encryptedAnswer = state.encryptedAnswer || state.answer;
       
-      // Restore guesses
       guessesContainer.innerHTML = '';
       state.guesses.forEach(guessData => {
         addGuess(guessData.text, guessData.type);
@@ -325,7 +321,6 @@ async function loadDaily(skipRestore = false) {
       
       updateAttemptsDisplay();
       
-      // If game is over, show the result
       if (gameOver) {
         gameOverDiv.classList.remove("hidden");
         if (state.won) {
@@ -335,13 +330,11 @@ async function loadDaily(skipRestore = false) {
           resultMessage.textContent = `😔 Sorry, you failed! The song was: ${answerDisplay}`;
           resultMessage.className = "result-message lose";
         }
-        // Disable inputs
         playBtn.disabled = true;
         skipBtn.disabled = true;
         guessInput.disabled = true;
       }
       
-      // Load audio
       audio.src = state.audioURL;
       audio.currentTime = 0;
       updateTimeDisplay();
@@ -349,45 +342,29 @@ async function loadDaily(skipRestore = false) {
       console.log(`Restored game state for ${todayStr}`);
     } catch (error) {
       console.error("Error restoring game state:", error);
-      // Fall through to load fresh game
     }
   }
   
-  // If no saved state or restore failed, load fresh game
   if (!gameOver) {
-    // Fetch today's song
     try {
-      const response = await fetch(`https://api.beatsaver.com/search/text/0?sortOrder=Rating&ranked=true`);
-      const data = await response.json();
+      const response = await fetch('data.json');
+      const songData = await response.json();
       
-      // Use date as seed for deterministic selection
-      const dateNum = parseInt(todayStr.replace(/-/g, ''));
-      const songIndex = dateNum % data.docs.length;
-      const todaySong = data.docs[songIndex];
+      const songAnswer = songData.songName.toLowerCase().trim();
+      answer = songAnswer;
+      answerDisplay = songData.songName;
+      dailyDate = todayStr;
       
-      if (todaySong) {
-        // ANTI-CHEAT: Encrypt the answer
-        const songAnswer = todaySong.metadata.songName.toLowerCase().trim();
-        answer = songAnswer; // Keep for compatibility
-        answerDisplay = todaySong.metadata.songName;
-        dailyDate = todayStr;
-        
-        // Encrypt
-        if (window.antiCheat) {
-          encryptedAnswer = window.antiCheat.encrypt(songAnswer);
-          console.log(`Today's song: [ENCRYPTED]`);
-        } else {
-          console.log(`Today's song: ${answerDisplay}`);
-        }
-        
-        // Load preview URL
-        if (todaySong.versions && todaySong.versions.length > 0) {
-          const previewURL = todaySong.versions[0].previewURL;
-          audio.src = previewURL;
-          audio.currentTime = 0;
-          updateTimeDisplay();
-        }
+      if (window.antiCheat) {
+        encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+        console.log(`Today's song: [ENCRYPTED]`);
+      } else {
+        console.log(`Today's song: ${answerDisplay}`);
       }
+      
+      audio.src = songData.previewURL;
+      audio.currentTime = 0;
+      updateTimeDisplay();
     } catch (error) {
       console.error("Error loading daily song:", error);
       showToast("Error loading today's song. Please try again later.");
@@ -422,20 +399,30 @@ function playPreview() {
   
   // Animate visualizer
   if (visualizer) {
-    visualizer.classList.add('playing');
+    visualizer.classList.add('active');
   }
   
   previewInterval = setInterval(() => {
+    updateProgressBar();
     if (audio.currentTime >= previewTime) {
       audio.pause();
       isPlaying = false;
       updatePlayButtonState();
       clearInterval(previewInterval);
       if (visualizer) {
-        visualizer.classList.remove('playing');
+        visualizer.classList.remove('active');
       }
+      progressBar.style.width = '0%';
     }
   }, 100);
+}
+
+function updateProgressBar() {
+  if (audio && audio.duration) {
+    const percent = (audio.currentTime / previewTime) * 100;
+    progressBar.style.width = Math.min(percent, 100) + '%';
+    currentTimeEl.textContent = formatTime(audio.currentTime);
+  }
 }
 
 function updatePlayButtonState() {
@@ -619,7 +606,7 @@ function resetGame() {
   updateTimeDisplay();
   updateAttemptsDisplay();
   
-  // Stop audio
+  // Stop audio and reset visualizer
   if (audio) {
     audio.pause();
     audio.currentTime = 0;
@@ -627,6 +614,11 @@ function resetGame() {
   clearInterval(previewInterval);
   isPlaying = false;
   updatePlayButtonState();
+  
+  if (visualizer) {
+    visualizer.classList.remove('active');
+  }
+  progressBar.style.width = '0%';
 }
 
 // Handle Input
