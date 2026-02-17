@@ -153,6 +153,7 @@ async function submitToLeaderboard(score) {
   
   try {
     // SECURITY: Generate timestamp and token
+    // Using current time to prevent timestamp errors
     const timestamp = Date.now().toString();
     const token = generateRequestToken(username, score, timestamp);
     
@@ -183,6 +184,7 @@ async function submitToLeaderboard(score) {
     }
   } catch (error) {
     showToast('Connection error. Please try again.');
+    console.error('Leaderboard submission error:', error);
     return false;
   }
 }
