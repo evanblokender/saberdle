@@ -463,7 +463,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.4.2";
+const APP_VERSION = "2.4.4";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -722,6 +722,18 @@ function saveInfiniteScore() {
 
 async function nextInfiniteSong() {
   console.log("Loading next infinite song...");
+  
+  // Stop any playing audio
+  if (isPlaying) {
+    audio.pause();
+    isPlaying = false;
+    clearInterval(previewInterval);
+  }
+  audio.currentTime = 0;
+  progressBar.value = 0;
+  currentTimeEl.textContent = '0:00';
+  totalTimeEl.textContent = '0:00';
+  
   gameOver = false;
   attempts = 0;
   previewTime = 3;
@@ -730,7 +742,7 @@ async function nextInfiniteSong() {
   guessInput.value = "";
   autocompleteResults.innerHTML = "";
   playBtn.disabled = false;
-  skipBtn.disabled = false;
+  skipBtn.disabled = true;
   updateTimeDisplay();
   await loadInfiniteMode();
 }
@@ -842,28 +854,57 @@ function playPreview() {
   audio.play();
   
   const startTime = audio.currentTime;
+  
+  // Update progress bar while playing
   previewInterval = setInterval(() => {
+    // Update progress bar
+    if (audio.duration) {
+      const progress = (audio.currentTime / audio.duration) * 100;
+      progressBar.value = progress;
+      currentTimeEl.textContent = formatTime(audio.currentTime);
+      totalTimeEl.textContent = formatTime(audio.duration);
+    }
+    
+    // Check if preview time has elapsed
     if (audio.currentTime - startTime >= previewTime || audio.ended) {
       audio.pause();
+      audio.currentTime = 0; // Reset to beginning
       isPlaying = false;
       clearInterval(previewInterval);
+      
+      // Re-enable play button after preview ends
+      playBtn.disabled = false;
+      skipBtn.disabled = true;
+      progressBar.value = 0;
+      currentTimeEl.textContent = '0:00';
     }
-  }, 100);
+  }, 50);
   
   playBtn.disabled = true;
   skipBtn.disabled = false;
 }
 
+// Helper function to format time
+function formatTime(seconds) {
+  if (isNaN(seconds)) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 function skipGuess() {
   if (isPlaying) {
     audio.pause();
+    audio.currentTime = 0; // Reset to beginning
     isPlaying = false;
     clearInterval(previewInterval);
   }
   
-  playBtn.disabled = false;
-  skipBtn.disabled = true;
+  // Reset progress bar
+  progressBar.value = 0;
+  currentTimeEl.textContent = '0:00';
   
+  // Buttons will be managed by playPreview
   attempts++;
   addGuess("⏭", "skip");
   updateAttemptsDisplay();
@@ -982,6 +1023,14 @@ function addGuess(text, type) {
 // End Game
 function endGame(won) {
   gameOver = true;
+  
+  // Stop any playing audio
+  if (isPlaying) {
+    audio.pause();
+    audio.currentTime = 0;
+    isPlaying = false;
+    clearInterval(previewInterval);
+  }
   
   playBtn.disabled = true;
   skipBtn.disabled = true;
@@ -1108,6 +1157,18 @@ function resetGame() {
   gameOverDiv.classList.add("hidden");
   guessInput.value = "";
   autocompleteResults.innerHTML = "";
+  
+  // Stop any playing audio
+  if (isPlaying) {
+    audio.pause();
+    isPlaying = false;
+    clearInterval(previewInterval);
+  }
+  audio.currentTime = 0;
+  progressBar.value = 0;
+  currentTimeEl.textContent = '0:00';
+  totalTimeEl.textContent = '0:00';
+  
   playBtn.disabled = false;
   skipBtn.disabled = true;
   updateAttemptsDisplay();
