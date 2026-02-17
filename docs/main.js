@@ -463,7 +463,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.4.4";
+const APP_VERSION = "2.4.6";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -750,21 +750,17 @@ async function nextInfiniteSong() {
 // Daily Mode
 async function loadDaily(skipRestore = false) {
   try {
-    // Use user's LOCAL timezone instead of hardcoded EST
-    const today = new Date();
-    
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
-    dailyDate = `${month}/${day}/${year}`;
-    
-    const response = await fetch(`/api/daily?date=${dailyDate}`);
+    // Load daily song from data.json
+    const response = await fetch('./data.json');
     const data = await response.json();
     
-    if (data.success && data.song) {
-      const songAnswer = data.song.metadata.songName.toLowerCase().trim();
+    if (data && data.songName) {
+      // Get the date from data.json
+      dailyDate = new Date(data.date).toLocaleDateString('en-US');
+      
+      const songAnswer = data.songName.toLowerCase().trim();
       answer = songAnswer;
-      answerDisplay = data.song.metadata.songName;
+      answerDisplay = data.songName;
       
       // ANTI-CHEAT: Encrypt the answer
       if (window.antiCheat) {
@@ -775,9 +771,8 @@ async function loadDaily(skipRestore = false) {
       }
       
       // Load preview URL
-      if (data.song.versions && data.song.versions.length > 0) {
-        const previewURL = data.song.versions[0].previewURL;
-        audio.src = previewURL;
+      if (data.previewURL) {
+        audio.src = data.previewURL;
         audio.currentTime = 0;
         updateTimeDisplay();
       }
@@ -853,9 +848,22 @@ function playPreview() {
   audio.play();
   
   const startTime = audio.currentTime;
+  let animationFrameId = null;
   
-  // Update progress bar while playing
-  previewInterval = setInterval(() => {
+  // Create visualizer animation
+  const updateVisualizer = () => {
+    if (!isPlaying) return;
+    
+    if (visualizer) {
+      // Animate visualizer bars
+      const bars = visualizer.querySelectorAll('.bar');
+      bars.forEach((bar, index) => {
+        // Random height variation for animation effect
+        const randomHeight = Math.random() * 100;
+        bar.style.height = randomHeight + '%';
+      });
+    }
+    
     // Update progress bar
     if (audio.duration) {
       const progress = (audio.currentTime / audio.duration) * 100;
@@ -864,12 +872,30 @@ function playPreview() {
       totalTimeEl.textContent = formatTime(audio.duration);
     }
     
-    // Check if preview time has elapsed
+    animationFrameId = requestAnimationFrame(updateVisualizer);
+  };
+  
+  // Start visualizer animation
+  updateVisualizer();
+  
+  // Check if preview time has elapsed
+  previewInterval = setInterval(() => {
     if (audio.currentTime - startTime >= previewTime || audio.ended) {
       audio.pause();
       audio.currentTime = 0; // Reset to beginning
       isPlaying = false;
       clearInterval(previewInterval);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+      
+      // Reset visualizer
+      if (visualizer) {
+        const bars = visualizer.querySelectorAll('.bar');
+        bars.forEach(bar => {
+          bar.style.height = '0%';
+        });
+      }
       
       // Re-enable play button after preview ends
       playBtn.disabled = false;
@@ -877,7 +903,7 @@ function playPreview() {
       progressBar.value = 0;
       currentTimeEl.textContent = '0:00';
     }
-  }, 50);
+  }, 100);
   
   playBtn.disabled = true;
   skipBtn.disabled = false;
