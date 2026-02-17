@@ -463,7 +463,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.4.7";
+const APP_VERSION = "2.4.9";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -720,31 +720,9 @@ function saveInfiniteScore() {
   localStorage.setItem("beatdle-infinite-score", infiniteScore.toString());
 }
 
-async function nextInfiniteSong() {
-  console.log("Loading next infinite song...");
-  
-  // Stop any playing audio
-  if (isPlaying) {
-    audio.pause();
-    isPlaying = false;
-    clearInterval(previewInterval);
-  }
-  audio.currentTime = 0;
-  progressBar.value = 0;
-  currentTimeEl.textContent = '0:00';
-  totalTimeEl.textContent = '0:00';
-  
-  gameOver = false;
-  attempts = 0;
-  previewTime = 3;
-  guessesContainer.innerHTML = "";
-  gameOverDiv.classList.add("hidden");
-  guessInput.value = "";
-  autocompleteResults.innerHTML = "";
-  playBtn.disabled = false;
-  skipBtn.disabled = true;
-  updateTimeDisplay();
-  await loadInfiniteMode();
+function nextInfiniteSong() {
+  resetGame();
+  loadInfiniteMode();
 }
 
 // Daily Mode
@@ -844,84 +822,57 @@ function updateTimeDisplay() {
 
 // Play and Control
 function playPreview() {
-  isPlaying = true;
-  audio.play();
+  if (isPlaying || gameOver) return;
   
-  const startTime = audio.currentTime;
-  let animationFrameId = null;
+  audio.currentTime = 0;
+  const playPromise = audio.play();
   
-  // Update function for visualizer, progress bar, and timer
-  const updatePlayback = () => {
-    if (!isPlaying) return;
-    
-    // Update visualizer bars if they exist
-    if (visualizer && visualizer.children.length > 0) {
-      const bars = visualizer.querySelectorAll('.bar');
-      if (bars.length > 0) {
-        bars.forEach((bar) => {
-          const randomHeight = Math.random() * 100;
-          bar.style.height = randomHeight + '%';
-        });
-      }
-    }
-    
-    // Update progress bar and timer if elements exist
-    if (progressBar && audio.duration && !isNaN(audio.duration)) {
-      const progress = (audio.currentTime / audio.duration) * 100;
-      progressBar.value = Math.min(100, Math.max(0, progress));
-    }
-    
-    if (currentTimeEl) {
-      currentTimeEl.textContent = formatTime(audio.currentTime);
-    }
-    
-    if (totalTimeEl && !isNaN(audio.duration)) {
-      totalTimeEl.textContent = formatTime(audio.duration);
-    }
-    
-    animationFrameId = requestAnimationFrame(updatePlayback);
-  };
-  
-  // Start updates
-  updatePlayback();
-  
-  // Check if preview time has elapsed
-  previewInterval = setInterval(() => {
-    if (audio.currentTime - startTime >= previewTime || audio.ended) {
-      audio.pause();
-      audio.currentTime = 0;
-      isPlaying = false;
-      clearInterval(previewInterval);
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-      
-      // Reset visualizer
+  if (playPromise !== undefined) {
+    playPromise.then(() => {
+      isPlaying = true;
+      playBtn.classList.add("playing");
       if (visualizer) {
-        const bars = visualizer.querySelectorAll('.bar');
-        bars.forEach(bar => {
-          bar.style.height = '0%';
-        });
+        visualizer.classList.add("active");
       }
       
-      // Reset progress bar
-      if (progressBar) {
-        progressBar.value = 0;
-      }
-      
-      // Reset time display
-      if (currentTimeEl) {
-        currentTimeEl.textContent = '0:00';
-      }
-      
-      // Re-enable play button
-      playBtn.disabled = false;
-      skipBtn.disabled = true;
-    }
-  }, 50);
-  
-  playBtn.disabled = true;
-  skipBtn.disabled = false;
+      const startTime = Date.now();
+      previewInterval = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        const progress = Math.min((elapsed / previewTime) * 100, 100);
+        
+        if (progressBar) {
+          progressBar.style.width = `${progress}%`;
+        }
+        if (currentTimeEl) {
+          currentTimeEl.textContent = formatTime(elapsed);
+        }
+        
+        if (elapsed >= previewTime) {
+          stopPreview();
+        }
+      }, 50);
+    }).catch(() => {
+      showToast("Unable to play audio. Please try again.");
+    });
+  }
+}
+
+function stopPreview() {
+  audio.pause();
+  isPlaying = false;
+  playBtn.classList.remove("playing");
+  if (visualizer) {
+    visualizer.classList.remove("active");
+  }
+  clearInterval(previewInterval);
+  if (progressBar) {
+    progressBar.style.width = "100%";
+  }
+  if (currentTimeEl) {
+    currentTimeEl.textContent = formatTime(previewTime);
+  }
+  playBtn.disabled = false;
+  skipBtn.disabled = true;
 }
 
 // Helper function to format time
@@ -933,22 +884,14 @@ function formatTime(seconds) {
 }
 
 function skipGuess() {
-  if (isPlaying) {
-    audio.pause();
-    audio.currentTime = 0; // Reset to beginning
-    isPlaying = false;
-    clearInterval(previewInterval);
-  }
+  if (gameOver) return;
   
-  // Reset progress bar
-  progressBar.value = 0;
-  currentTimeEl.textContent = '0:00';
+  stopPreview();
   
-  // Buttons will be managed by playPreview
   attempts++;
-  addGuess("⏭", "skip");
-  updateAttemptsDisplay();
   previewTime += 2;
+  addGuess("Skip", "skip");
+  updateAttemptsDisplay();
   updateTimeDisplay();
   
   if (attempts >= maxAttempts) {
@@ -1062,15 +1005,8 @@ function addGuess(text, type) {
 
 // End Game
 function endGame(won) {
+  stopPreview();
   gameOver = true;
-  
-  // Stop any playing audio
-  if (isPlaying) {
-    audio.pause();
-    audio.currentTime = 0;
-    isPlaying = false;
-    clearInterval(previewInterval);
-  }
   
   playBtn.disabled = true;
   skipBtn.disabled = true;
@@ -1135,16 +1071,19 @@ function shareResult() {
   }
 }
 
-// Countdown to Next Game
 function updateCountdown() {
   const now = new Date();
   
-  // Use user's LOCAL timezone instead of hardcoded EST
-  const tomorrow = new Date(now);
+  const estOffset = -5 * 60;
+  const nowEST = new Date(now.getTime() + (estOffset + now.getTimezoneOffset()) * 60 * 1000);
+  
+  const tomorrow = new Date(nowEST);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   
-  const diff = tomorrow - now;
+  const nextMidnightEST = new Date(tomorrow.getTime() - (estOffset + now.getTimezoneOffset()) * 60 * 1000);
+  
+  const diff = nextMidnightEST - now;
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -1186,29 +1125,29 @@ function displayStats() {
 }
 
 function resetGame() {
-  gameOver = false;
   attempts = 0;
   previewTime = 3;
-  guessesContainer.innerHTML = "";
-  gameOverDiv.classList.add("hidden");
-  guessInput.value = "";
-  autocompleteResults.innerHTML = "";
+  gameOver = false;
+  isPlaying = false;
   
-  // Stop any playing audio
-  if (isPlaying) {
-    audio.pause();
-    isPlaying = false;
-    clearInterval(previewInterval);
-  }
-  audio.currentTime = 0;
-  progressBar.value = 0;
-  currentTimeEl.textContent = '0:00';
-  totalTimeEl.textContent = '0:00';
+  guessesContainer.innerHTML = "";
   
   playBtn.disabled = false;
-  skipBtn.disabled = true;
+  skipBtn.disabled = false;
+  guessInput.disabled = false;
+  guessInput.value = "";
+  
+  gameOverDiv.classList.add("hidden");
+  
   updateAttemptsDisplay();
   updateTimeDisplay();
+  
+  if (progressBar) {
+    progressBar.style.width = "0%";
+  }
+  if (currentTimeEl) {
+    currentTimeEl.textContent = "0:00";
+  }
 }
 
 // Theme
