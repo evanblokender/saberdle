@@ -750,13 +750,12 @@ async function nextInfiniteSong() {
 // Daily Mode
 async function loadDaily(skipRestore = false) {
   try {
+    // Use user's LOCAL timezone instead of hardcoded EST
     const today = new Date();
-    const estOffset = -5 * 60;
-    const todayEST = new Date(today.getTime() + (estOffset + today.getTimezoneOffset()) * 60 * 1000);
     
-    const year = todayEST.getFullYear();
-    const month = String(todayEST.getMonth() + 1).padStart(2, '0');
-    const day = String(todayEST.getDate()).padStart(2, '0');
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
     dailyDate = `${month}/${day}/${year}`;
     
     const response = await fetch(`/api/daily?date=${dailyDate}`);
@@ -1099,16 +1098,12 @@ function shareResult() {
 function updateCountdown() {
   const now = new Date();
   
-  const estOffset = -5 * 60;
-  const nowEST = new Date(now.getTime() + (estOffset + now.getTimezoneOffset()) * 60 * 1000);
-  
-  const tomorrow = new Date(nowEST);
+  // Use user's LOCAL timezone instead of hardcoded EST
+  const tomorrow = new Date(now);
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
   
-  const nextMidnightEST = new Date(tomorrow.getTime() - (estOffset + now.getTimezoneOffset()) * 60 * 1000);
-  
-  const diff = nextMidnightEST - now;
+  const diff = tomorrow - now;
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
