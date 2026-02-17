@@ -1,449 +1,4 @@
 //i know it looks vibe coded, TRUST ITS NOT, i only used ai to add comments so i can find and easily debug something.
-
-// ========================================
-// ANTI-CHEAT SYSTEM (Integrated from anti-cheat.js)
-// ========================================
-class AntiCheat {
-  constructor() {
-    this.devToolsOpen = false;
-    this.devToolsDetected = false;
-    this.bannedUntil = null;
-    this.checkInterval = null;
-    this.encryptionKey = this.generateKey();
-    this.executionPaused = false;
-    this.aggressiveActive = false;
-    this.debuggerSpamIntervals = [];
-    this._protectedData = new Map();
-    this.init();
-  }
-  init() {
-    this.checkBanStatus();
-    if (this.isBanned()) {
-      this.showBanScreen();
-      return;
-    }
-    this.protectGlobalScope();
-    this.blockContextMenu();
-    this.startDevToolsDetection();
-    this.preventDebugger();
-    this.lockDownDOM();
-  }
-  protectGlobalScope() {
-    Object.freeze(Object.prototype);
-    const originalDefineProperty = Object.defineProperty;
-    const protectedNames = ['answer', 'correctAnswer', 'solution', 'gameData', 'songData', 'trackData'];
-    Object.defineProperty = function(obj, prop, descriptor) {
-      if (obj === window && protectedNames.some(name => prop.toLowerCase().includes(name.toLowerCase()))) {
-        console.error('🚫 ANTI-CHEAT: Access denied');
-        return obj;
-      }
-      return originalDefineProperty.call(this, obj, prop, descriptor);
-    };
-    this.protectConsoleFromStart();
-  }
-  protectConsoleFromStart() {
-    const self = this;
-    const protectedNames = ['answer', 'correctAnswer', 'solution', 'gameData', 'songData', 'trackData'];
-    const originalLog = console.log;
-    const originalDir = console.dir;
-    const originalTable = console.table;
-    console.log = function(...args) {
-      const filtered = args.map(arg => {
-        if (typeof arg === 'object' && arg !== null) {
-          for (let key in arg) {
-            if (protectedNames.some(name => key.toLowerCase().includes(name.toLowerCase()))) {
-              return '🚫 [PROTECTED DATA]';
-            }
-          }
-        }
-        if (typeof arg === 'string' && protectedNames.some(name => arg.toLowerCase().includes(name.toLowerCase()))) {
-          return '🚫 [PROTECTED DATA]';
-        }
-        return arg;
-      });
-      return originalLog.apply(console, filtered);
-    };
-    console.dir = function(obj) {
-      if (typeof obj === 'object' && obj !== null) {
-        for (let key in obj) {
-          if (protectedNames.some(name => key.toLowerCase().includes(name.toLowerCase()))) {
-            console.log('🚫 ANTI-CHEAT: Cannot inspect protected data');
-            return;
-          }
-        }
-      }
-      return originalDir.call(console, obj);
-    };
-    console.table = function(data) {
-      console.log('🚫 ANTI-CHEAT: console.table disabled');
-      return;
-    };
-  }
-  lockDownDOM() {
-    const originalQuerySelector = document.querySelector;
-    const originalQuerySelectorAll = document.querySelectorAll;
-    document.querySelector = function(selector) {
-      if (selector.includes('answer') || selector.includes('data-answer')) {
-        console.error('🚫 ANTI-CHEAT: Blocked selector');
-        return null;
-      }
-      return originalQuerySelector.call(document, selector);
-    };
-    document.querySelectorAll = function(selector) {
-      if (selector.includes('answer') || selector.includes('data-answer')) {
-        console.error('🚫 ANTI-CHEAT: Blocked selector');
-        return [];
-      }
-      return originalQuerySelectorAll.call(document, selector);
-    };
-  }
-  setProtectedData(key, value) {
-    const encrypted = this.encrypt(JSON.stringify(value));
-    this._protectedData.set(key, encrypted);
-  }
-  getProtectedData(key) {
-    const encrypted = this._protectedData.get(key);
-    if (!encrypted) return null;
-    try {
-      const decrypted = this.decrypt(encrypted);
-      return JSON.parse(decrypted);
-    } catch (e) {
-      return null;
-    }
-  }
-  blockContextMenu() {
-    document.addEventListener('contextmenu', function(e) {
-      e.preventDefault();
-      return false;
-    });
-  }
-  activateAggressiveMeasures() {
-    if (this.aggressiveActive) return;
-    this.aggressiveActive = true;
-    console.log('DevTools detected - activating aggressive anti-cheat');
-    this.startConsoleSpam();
-    this.protectConsoleAggressive();
-    this.scrambleDOM();
-    this.pauseExecution();
-    this.spamDebugger();
-  }
-  spamDebugger() {
-    const createDebuggerSpam = () => {
-      const interval = setInterval(() => {
-        if (!this.aggressiveActive) {
-          clearInterval(interval);
-          return;
-        }
-        debugger;
-      }, 1);
-      this.debuggerSpamIntervals.push(interval);
-    };
-    for (let i = 0; i < 10; i++) {
-      createDebuggerSpam();
-    }
-    const recursiveDebugger = () => {
-      if (!this.aggressiveActive) return;
-      debugger;
-      debugger;
-      debugger;
-      Promise.resolve().then(recursiveDebugger);
-    };
-    recursiveDebugger();
-    const rafDebugger = () => {
-      if (!this.aggressiveActive) return;
-      debugger;
-      requestAnimationFrame(rafDebugger);
-    };
-    rafDebugger();
-  }
-  startConsoleSpam() {
-    setInterval(() => {
-      if (!this.aggressiveActive) return;
-      for (let i = 0; i < 100; i++) {
-        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      }
-      console.clear();
-    }, 50);
-  }
-  protectConsoleAggressive() {
-    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug', 'group', 'groupEnd', 'groupCollapsed'];
-    methods.forEach(method => {
-      console[method] = function() {
-        debugger;
-        for (let i = 0; i < 50; i++) {
-          console.clear();
-        }
-        return undefined;
-      };
-    });
-    window.eval = new Proxy(window.eval, {
-      apply: function() {
-        debugger;
-        console.error('🚫 ANTI-CHEAT: eval() BLOCKED');
-        return null;
-      }
-    });
-    window.Function = new Proxy(window.Function, {
-      construct: function() {
-        debugger;
-        console.error('🚫 ANTI-CHEAT: Function() BLOCKED');
-        return function() {};
-      }
-    });
-    const originalSetTimeout = window.setTimeout;
-    const originalSetInterval = window.setInterval;
-    window.setTimeout = function(code, ...args) {
-      if (typeof code === 'string') {
-        debugger;
-        return null;
-      }
-      return originalSetTimeout.call(window, code, ...args);
-    };
-    window.setInterval = function(code, ...args) {
-      if (typeof code === 'string') {
-        debugger;
-        return null;
-      }
-      return originalSetInterval.call(window, code, ...args);
-    };
-  }
-  scrambleDOM() {
-    setInterval(() => {
-      if (!this.aggressiveActive) return;
-      var $all = document.querySelectorAll("*");
-      for (var each of $all) {
-        each.classList.add(`x${Math.random().toString(36).substr(2, 9)}`);
-      }
-    }, 100);
-  }
-  generateKey() {
-    const seed = Date.now().toString() + navigator.userAgent + Math.random();
-    let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash;
-    }
-    return Math.abs(hash).toString(36);
-  }
-  encrypt(text) {
-    let result = '';
-    for (let i = 0; i < text.length; i++) {
-      const charCode = text.charCodeAt(i);
-      const keyChar = this.encryptionKey.charCodeAt(i % this.encryptionKey.length);
-      result += String.fromCharCode(charCode ^ keyChar);
-    }
-    return btoa(result);
-  }
-  decrypt(encrypted) {
-    const decoded = atob(encrypted);
-    let result = '';
-    for (let i = 0; i < decoded.length; i++) {
-      const charCode = decoded.charCodeAt(i);
-      const keyChar = this.encryptionKey.charCodeAt(i % this.encryptionKey.length);
-      result += String.fromCharCode(charCode ^ keyChar);
-    }
-    return result;
-  }
-  startDevToolsDetection() {
-    const element = new Image();
-    let consoleOpenCount = 0;
-    Object.defineProperty(element, 'id', {
-      get: () => {
-        consoleOpenCount++;
-        if (consoleOpenCount > 2) {
-          this.devToolsOpen = true;
-          this.devToolsDetected = true;
-          this.activateAggressiveMeasures();
-        }
-        return 'devtools-check';
-      }
-    });
-    this.checkInterval = setInterval(() => {
-      console.log('%c', element);
-      console.clear();
-    }, 1000);
-    this.checkWindowSize();
-    window.addEventListener('resize', () => this.checkWindowSize());
-    this.checkDebuggerTiming();
-    this.toStringDetection();
-  }
-  checkWindowSize() {
-    const widthThreshold = window.outerWidth - window.innerWidth > 200;
-    const heightThreshold = window.outerHeight - window.innerHeight > 200;
-    if (widthThreshold && heightThreshold) {
-      this.devToolsOpen = true;
-      this.devToolsDetected = true;
-      this.activateAggressiveMeasures();
-    }
-  }
-  checkDebuggerTiming() {
-    setInterval(() => {
-      const start = performance.now();
-      if (!this.aggressiveActive) {
-        debugger;
-      }
-      const end = performance.now();
-      if (end - start > 100) {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
-      }
-    }, 2000);
-  }
-  toStringDetection() {
-    const div = document.createElement('div');
-    Object.defineProperty(div, 'id', {
-      get: () => {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
-        return 'detection';
-      }
-    });
-    setInterval(() => {
-      console.log(div);
-      console.clear();
-    }, 1000);
-  }
-  pauseExecution() {
-    if (this.executionPaused) return;
-    this.executionPaused = true;
-    console.log('%c🚫 DevTools detected - you will be banned if you submit a guess 🚫', 
-                'color: red; font-size: 24px; font-weight: bold;');
-  }
-  preventDebugger() {
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'F12' ||
-          e.keyCode === 123 ||
-          (e.ctrlKey && e.shiftKey && e.keyCode === 73) ||
-          (e.ctrlKey && e.shiftKey && e.keyCode === 74) ||
-          (e.ctrlKey && e.shiftKey && e.keyCode === 67) ||
-          (e.ctrlKey && e.keyCode === 85)) {
-        e.preventDefault();
-        e.stopPropagation();
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
-        return false;
-      }
-    });
-  }
-  checkBanStatus() {
-    const banData = this.getCookie('beatdle_ban');
-    if (banData) {
-      try {
-        const data = JSON.parse(atob(banData));
-        this.bannedUntil = new Date(data.until);
-      } catch (e) {
-        this.deleteCookie('beatdle_ban');
-      }
-    }
-  }
-  isBanned() {
-    if (!this.bannedUntil) return false;
-    const now = new Date();
-    if (now < this.bannedUntil) {
-      return true;
-    } else {
-      this.deleteCookie('beatdle_ban');
-      this.bannedUntil = null;
-      return false;
-    }
-  }
-  banUser() {
-    const banUntil = new Date();
-    banUntil.setDate(banUntil.getDate() + 7);
-    const banData = {
-      until: banUntil.toISOString(),
-      reason: 'cheating_detected'
-    };
-    this.setCookie('beatdle_ban', btoa(JSON.stringify(banData)), 7);
-    this.bannedUntil = banUntil;
-    this.showBanScreen();
-  }
-  showBanScreen() {
-    document.body.innerHTML = `
-      <div style="
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 999999;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      ">
-        <div style="
-          background: white;
-          padding: 40px;
-          border-radius: 20px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-          text-align: center;
-          max-width: 500px;
-        ">
-          <div style="font-size: 72px; margin-bottom: 20px;">🚫</div>
-          <h1 style="color: #e74c3c; margin: 0 0 20px 0; font-size: 32px;">lolz you cheated</h1>
-          <p style="color: #555; font-size: 18px; margin-bottom: 20px;">
-            We detected that you opened DevTools/Inspector while playing.
-          </p>
-          <p style="color: #333; font-size: 16px; margin-bottom: 30px;">
-            <strong>You are banned from Beatdle for 7 days.</strong>
-          </p>
-          <p style="color: #777; font-size: 14px;">
-            Ban expires: ${this.bannedUntil ? this.bannedUntil.toLocaleString() : 'Unknown'}
-          </p>
-          <p style="color: #999; font-size: 12px; margin-top: 30px;">
-            Play fair next time! 🎵
-          </p>
-        </div>
-      </div>
-    `;
-    document.body.style.overflow = 'hidden';
-  }
-  checkOnGuess() {
-    if (this.devToolsDetected) {
-      this.banUser();
-      return false;
-    }
-    return true;
-  }
-  setCookie(name, value, days) {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/;SameSite=Strict`;
-  }
-  getCookie(name) {
-    const nameEQ = name + "=";
-    const ca = document.cookie.split(';');
-    for (let i = 0; i < ca.length; i++) {
-      let c = ca[i];
-      while (c.charAt(0) === ' ') c = c.substring(1, c.length);
-      if (c.indexOf(nameEQ) === 0) return c.substring(nameEQ.length, c.length);
-    }
-    return null;
-  }
-  deleteCookie(name) {
-    document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;`;
-  }
-  destroy() {
-    if (this.checkInterval) {
-      clearInterval(this.checkInterval);
-    }
-    this.debuggerSpamIntervals.forEach(interval => clearInterval(interval));
-    this.aggressiveActive = false;
-  }
-}
-
-// Initialize AntiCheat first
-window.antiCheat = new AntiCheat();
-
-// ========================================
-// MAIN GAME CODE
-// ========================================
-
 let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
@@ -463,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.4.9";
+const APP_VERSION = "2.5.0";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -702,17 +257,46 @@ async function loadInfiniteMode() {
       infiniteScore = savedScore ? parseInt(savedScore) : 0;
       updateInfiniteScoreDisplay();
     } else {
-      showToast("Failed to load song. Please try again.");
+      // If no songs found on this page, try page 0 as fallback
+      console.log("No songs on random page, trying page 0");
+      const fallbackResponse = await fetch(
+        `https://api.beatsaver.com/search/text/0?sortOrder=Rating&ranked=true`
+      );
+      const fallbackData = await fallbackResponse.json();
+      
+      if (fallbackData.docs && fallbackData.docs.length > 0) {
+        const randomSong = fallbackData.docs[Math.floor(Math.random() * fallbackData.docs.length)];
+        currentInfiniteSong = randomSong;
+        
+        // ANTI-CHEAT: Encrypt the answer
+        const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
+        answer = songAnswer;
+        answerDisplay = randomSong.metadata.songName;
+        
+        if (window.antiCheat) {
+          encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+        }
+        
+        if (randomSong.versions && randomSong.versions.length > 0) {
+          audio.src = randomSong.versions[0].previewURL;
+          audio.currentTime = 0;
+          updateTimeDisplay();
+        }
+        
+        const savedScore = localStorage.getItem("beatdle-infinite-score");
+        infiniteScore = savedScore ? parseInt(savedScore) : 0;
+        updateInfiniteScoreDisplay();
+      }
     }
   } catch (error) {
-    console.error("Error loading infinite mode:", error);
-    showToast("Connection error. Please try again.");
+    console.error("Failed to load infinite mode song:", error);
+    showToast("Failed to load song. Please try again.");
   }
 }
 
 function updateInfiniteScoreDisplay() {
   if (infiniteScoreEl) {
-    infiniteScoreEl.textContent = `Score: ${infiniteScore}`;
+    infiniteScoreEl.textContent = infiniteScore;
   }
 }
 
@@ -725,102 +309,231 @@ function nextInfiniteSong() {
   loadInfiniteMode();
 }
 
-// Daily Mode
+// Theme Management
+function loadTheme() {
+  const theme = localStorage.getItem("beatdle-theme") || "dark";
+  document.body.setAttribute("data-theme", theme);
+}
+
+function toggleTheme() {
+  const current = document.body.getAttribute("data-theme");
+  const newTheme = current === "dark" ? "light" : "dark";
+  document.body.setAttribute("data-theme", newTheme);
+  localStorage.setItem("beatdle-theme", newTheme);
+  showToast(`Switched to ${newTheme} theme`);
+}
+
+// Load Daily Song
 async function loadDaily(skipRestore = false) {
   try {
-    // Load daily song from data.json
-    const response = await fetch('./data.json');
+    const cacheBuster = `?v=${Date.now()}`;
+    
+    // Load from data.json instead of API
+    const response = await fetch(`data.json${cacheBuster}`);
     const data = await response.json();
     
-    if (data && data.songName) {
-      // Get the date from data.json
-      dailyDate = new Date(data.date).toLocaleDateString('en-US');
-      
-      const songAnswer = data.songName.toLowerCase().trim();
-      answer = songAnswer;
-      answerDisplay = data.songName;
-      
-      // ANTI-CHEAT: Encrypt the answer
-      if (window.antiCheat) {
-        encryptedAnswer = window.antiCheat.encrypt(songAnswer);
-        console.log(`Daily song loaded: [ENCRYPTED]`);
-      } else {
-        console.log(`Daily song loaded: ${answerDisplay}`);
+    // ANTI-CHEAT: Immediately encrypt the answer after receiving
+    const songAnswer = data.songName.toLowerCase().trim();
+    answer = songAnswer;
+    answerDisplay = data.songName;
+    dailyDate = data.date;
+    
+    // Encrypt and store
+    if (window.antiCheat) {
+      encryptedAnswer = window.antiCheat.encrypt(songAnswer);
+      data.songName = "[REDACTED]";
+    }
+    
+    // Check if already played today (skip if switching modes)
+    if (!skipRestore) {
+      const gameState = loadGameState();
+      if (gameState && gameState.date === dailyDate && gameState.completed) {
+        try {
+          restoreGameState(gameState);
+          return;
+        } catch (error) {
+          console.log("Error restoring old game state, clearing...", error);
+          localStorage.removeItem(`beatdle-${dailyDate}`);
+          showToast("Old game state cleared. Please replay today's song!");
+        }
       }
-      
-      // Load preview URL
-      if (data.previewURL) {
-        audio.src = data.previewURL;
-        audio.currentTime = 0;
-        updateTimeDisplay();
-      }
-      
-      // Restore saved state if not skipping
-      if (!skipRestore) {
-        restoreGameState();
-      }
-    } else {
-      showToast("Failed to load today's song. Please refresh.");
+    }
+    
+    // Load audio
+    audio.src = data.previewURL;
+    audio.currentTime = 0;
+    updateTimeDisplay();
+  } catch (error) {
+    console.error("Failed to load daily song:", error);
+    showToast("Failed to load today's song. Please refresh.");
+  }
+}
+
+// Game State Management
+function loadGameState() {
+  if (gameMode === "infinite") return null;
+  
+  const key = `beatdle-${dailyDate}`;
+  const saved = localStorage.getItem(key);
+  return saved ? JSON.parse(saved) : null;
+}
+
+function saveGameState() {
+  if (gameMode === "infinite") return;
+  
+  const key = `beatdle-${dailyDate}`;
+  const state = {
+    date: dailyDate,
+    attempts: attempts,
+    previewTime: previewTime,
+    guesses: Array.from(guessesContainer.children).map(el => {
+      const textEl = el.querySelector('.guess-text');
+      const text = textEl ? textEl.textContent : el.textContent.substring(2);
+      return {
+        text: text,
+        type: el.classList.contains("correct") ? "correct" : 
+              el.classList.contains("skip") ? "skip" : "incorrect"
+      };
+    }),
+    completed: gameOver,
+    won: gameOver && resultMessage.classList.contains("win"),
+    migrated: true
+  };
+  localStorage.setItem(key, JSON.stringify(state));
+}
+
+function restoreGameState(state) {
+  try {
+    attempts = state.attempts;
+    previewTime = state.previewTime;
+    gameOver = state.completed;
+    
+    state.guesses.forEach(guess => {
+      addGuess(guess.text, guess.type);
+    });
+    
+    updateAttemptsDisplay();
+    updateTimeDisplay();
+    
+    if (state.completed) {
+      endGame(state.won);
     }
   } catch (error) {
-    console.error("Error loading daily song:", error);
-    showToast("Connection error. Please refresh the page.");
+    console.error("Error restoring game state:", error);
+    throw error;
   }
 }
 
-// Save/Load Game State
-function saveGameState() {
-  if (gameMode === "daily") {
-    const guesses = Array.from(guessesContainer.children).map(el => ({
-      text: el.querySelector('.guess-text').textContent,
-      type: el.classList.contains('correct') ? 'correct' : el.classList.contains('skip') ? 'skip' : 'incorrect'
-    }));
-    
-    const gameState = {
-      date: dailyDate,
-      guesses: guesses,
-      attempts: attempts,
-      gameOver: gameOver,
-      previewTime: previewTime,
-      migrated: true
-    };
-    
-    localStorage.setItem(`beatdle-${dailyDate}`, JSON.stringify(gameState));
-  }
+// Statistics Management
+function loadStats() {
+  const defaultStats = {
+    played: 0,
+    wins: 0,
+    currentStreak: 0,
+    maxStreak: 0,
+    distribution: [0, 0, 0, 0, 0, 0],
+    lastPlayedDate: null
+  };
+  const saved = localStorage.getItem("beatdle-stats");
+  return saved ? JSON.parse(saved) : defaultStats;
 }
 
-function restoreGameState() {
-  if (gameMode === "daily") {
-    const gameState = JSON.parse(localStorage.getItem(`beatdle-${dailyDate}`)) || null;
+function saveStats(won, guessCount) {
+  if (gameMode === "infinite") return;
+  
+  const stats = loadStats();
+  
+  if (stats.lastPlayedDate !== dailyDate) {
+    stats.played++;
+    stats.lastPlayedDate = dailyDate;
     
-    if (gameState && gameState.guesses) {
-      guessesContainer.innerHTML = "";
-      gameState.guesses.forEach(guess => {
-        addGuess(guess.text, guess.type);
-      });
-      attempts = gameState.attempts || 0;
-      previewTime = gameState.previewTime || 3;
-      gameOver = gameState.gameOver || false;
-      updateTimeDisplay();
-      updateAttemptsDisplay();
-      
-      if (gameOver) {
-        endGame(guessesContainer.querySelector('.correct') !== null);
-      }
+    if (won) {
+      stats.wins++;
+      stats.currentStreak++;
+      stats.maxStreak = Math.max(stats.maxStreak, stats.currentStreak);
+      stats.distribution[guessCount - 1]++;
+    } else {
+      stats.currentStreak = 0;
     }
+    
+    localStorage.setItem("beatdle-stats", JSON.stringify(stats));
   }
 }
 
-// Update UI
-function updateAttemptsDisplay() {
-  attemptsCount.textContent = `${attempts} / ${maxAttempts}`;
+function displayStats() {
+  const stats = loadStats();
+  document.getElementById("stat-played").textContent = stats.played;
+  document.getElementById("stat-wins").textContent = stats.wins;
+  document.getElementById("stat-streak").textContent = stats.currentStreak;
+  document.getElementById("stat-max-streak").textContent = stats.maxStreak;
+  
+  const distributionEl = document.getElementById("distribution");
+  distributionEl.innerHTML = "";
+  
+  const maxCount = Math.max(...stats.distribution, 1);
+  stats.distribution.forEach((count, index) => {
+    const bar = document.createElement("div");
+    bar.className = "distribution-bar";
+    
+    const label = document.createElement("div");
+    label.className = "distribution-label";
+    label.textContent = index + 1;
+    
+    const fill = document.createElement("div");
+    fill.className = "distribution-fill";
+    
+    const inner = document.createElement("div");
+    inner.className = "distribution-inner";
+    inner.style.width = `${(count / maxCount) * 100}%`;
+    inner.textContent = count;
+    
+    fill.appendChild(inner);
+    bar.appendChild(label);
+    bar.appendChild(fill);
+    distributionEl.appendChild(bar);
+  });
+}
+
+// Reset Game
+function resetGame() {
+  attempts = 0;
+  previewTime = 3;
+  gameOver = false;
+  isPlaying = false;
+  
+  guessesContainer.innerHTML = "";
+  
+  playBtn.disabled = false;
+  skipBtn.disabled = false;
+  guessInput.disabled = false;
+  guessInput.value = "";
+  
+  gameOverDiv.classList.add("hidden");
+  
+  updateAttemptsDisplay();
+  updateTimeDisplay();
+  
+  progressBar.style.width = "0%";
+  currentTimeEl.textContent = "0:00";
+}
+
+// Time Formatting
+function formatTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
 function updateTimeDisplay() {
-  previewTimeDisplay.textContent = previewTime;
+  totalTimeEl.textContent = formatTime(previewTime);
+  previewTimeDisplay.textContent = `${previewTime}s`;
 }
 
-// Play and Control
+function updateAttemptsDisplay() {
+  attemptsCount.textContent = `${attempts}/${maxAttempts}`;
+}
+
+// Audio Playback
 function playPreview() {
   if (isPlaying || gameOver) return;
   
@@ -831,21 +544,15 @@ function playPreview() {
     playPromise.then(() => {
       isPlaying = true;
       playBtn.classList.add("playing");
-      if (visualizer) {
-        visualizer.classList.add("active");
-      }
+      visualizer.classList.add("active");
       
       const startTime = Date.now();
       previewInterval = setInterval(() => {
         const elapsed = (Date.now() - startTime) / 1000;
         const progress = Math.min((elapsed / previewTime) * 100, 100);
         
-        if (progressBar) {
-          progressBar.style.width = `${progress}%`;
-        }
-        if (currentTimeEl) {
-          currentTimeEl.textContent = formatTime(elapsed);
-        }
+        progressBar.style.width = `${progress}%`;
+        currentTimeEl.textContent = formatTime(elapsed);
         
         if (elapsed >= previewTime) {
           stopPreview();
@@ -861,32 +568,15 @@ function stopPreview() {
   audio.pause();
   isPlaying = false;
   playBtn.classList.remove("playing");
-  if (visualizer) {
-    visualizer.classList.remove("active");
-  }
+  visualizer.classList.remove("active");
   clearInterval(previewInterval);
-  if (progressBar) {
-    progressBar.style.width = "100%";
-  }
-  if (currentTimeEl) {
-    currentTimeEl.textContent = formatTime(previewTime);
-  }
-  playBtn.disabled = false;
-  skipBtn.disabled = true;
+  progressBar.style.width = "100%";
+  currentTimeEl.textContent = formatTime(previewTime);
 }
 
-// Helper function to format time
-function formatTime(seconds) {
-  if (isNaN(seconds)) return '0:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
-
+// Skip
 function skipGuess() {
   if (gameOver) return;
-  
-  stopPreview();
   
   attempts++;
   previewTime += 2;
@@ -904,23 +594,29 @@ function skipGuess() {
 }
 
 // Autocomplete
-async function handleInput(event) {
-  const query = event.target.value.trim();
+let autocompleteTimeout;
+async function handleInput() {
+  const query = guessInput.value.trim();
+  
+  clearTimeout(autocompleteTimeout);
   
   if (query.length < 2) {
     autocompleteResults.innerHTML = "";
     return;
   }
   
-  try {
-    const response = await fetch(
-      `https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(query)}&ranked=true`
-    );
-    const data = await response.json();
-    displayAutocomplete(data.docs || []);
-  } catch (error) {
-    console.error("Error fetching autocomplete:", error);
-  }
+  autocompleteTimeout = setTimeout(async () => {
+    try {
+      const response = await fetch(
+        `https://api.beatsaver.com/search/text/0?q=${encodeURIComponent(query)}&ranked=true`
+      );
+      const data = await response.json();
+      
+      displayAutocomplete(data.docs.slice(0, 5));
+    } catch (error) {
+      console.error("Autocomplete error:", error);
+    }
+  }, 300);
 }
 
 function displayAutocomplete(songs) {
@@ -1005,7 +701,6 @@ function addGuess(text, type) {
 
 // End Game
 function endGame(won) {
-  stopPreview();
   gameOver = true;
   
   playBtn.disabled = true;
@@ -1071,6 +766,7 @@ function shareResult() {
   }
 }
 
+// Countdown to Next Game
 function updateCountdown() {
   const now = new Date();
   
@@ -1089,79 +785,6 @@ function updateCountdown() {
   const seconds = Math.floor((diff % (1000 * 60)) / 1000);
   
   countdownEl.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-}
-
-// Stats and Persistence
-function saveStats(won, guessCount) {
-  const stats = JSON.parse(localStorage.getItem('beatdle-stats')) || { wins: 0, losses: 0, guesses: [] };
-  
-  if (won) {
-    stats.wins++;
-  } else {
-    stats.losses++;
-  }
-  
-  stats.guesses.push(guessCount);
-  localStorage.setItem('beatdle-stats', JSON.stringify(stats));
-}
-
-function displayStats() {
-  const stats = JSON.parse(localStorage.getItem('beatdle-stats')) || { wins: 0, losses: 0, guesses: [] };
-  const statsContent = document.getElementById('stats-content');
-  
-  if (!statsContent) return;
-  
-  const totalGames = stats.wins + stats.losses;
-  const winPercentage = totalGames > 0 ? Math.round((stats.wins / totalGames) * 100) : 0;
-  const avgGuesses = stats.guesses.length > 0 ? (stats.guesses.reduce((a, b) => a + b, 0) / stats.guesses.length).toFixed(2) : 'N/A';
-  
-  statsContent.innerHTML = `
-    <p><strong>Games Played:</strong> ${totalGames}</p>
-    <p><strong>Wins:</strong> ${stats.wins}</p>
-    <p><strong>Losses:</strong> ${stats.losses}</p>
-    <p><strong>Win Rate:</strong> ${winPercentage}%</p>
-    <p><strong>Average Guesses (Wins):</strong> ${avgGuesses}</p>
-  `;
-}
-
-function resetGame() {
-  attempts = 0;
-  previewTime = 3;
-  gameOver = false;
-  isPlaying = false;
-  
-  guessesContainer.innerHTML = "";
-  
-  playBtn.disabled = false;
-  skipBtn.disabled = false;
-  guessInput.disabled = false;
-  guessInput.value = "";
-  
-  gameOverDiv.classList.add("hidden");
-  
-  updateAttemptsDisplay();
-  updateTimeDisplay();
-  
-  if (progressBar) {
-    progressBar.style.width = "0%";
-  }
-  if (currentTimeEl) {
-    currentTimeEl.textContent = "0:00";
-  }
-}
-
-// Theme
-function loadTheme() {
-  const savedTheme = localStorage.getItem('beatdle-theme') || 'light';
-  document.documentElement.setAttribute('data-theme', savedTheme);
-}
-
-function toggleTheme() {
-  const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
-  const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('beatdle-theme', newTheme);
-  showToast(`Switched to ${newTheme} mode`);
 }
 
 // Toast Notification
