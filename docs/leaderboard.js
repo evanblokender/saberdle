@@ -1,9 +1,21 @@
 const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
 const API_TIMEOUT = 5000;
+const API_KEY = 'erickgtgamasisbeingabeanis'; // Must match API_KEY in your server .env
 
 // Leaderboard State
 let leaderboardData = [];
 let currentUsername = localStorage.getItem('beatdle-username') || '';
+
+// ========================================
+// Shared fetch headers (includes API key)
+// ========================================
+function getHeaders(extra = {}) {
+  return {
+    'Content-Type': 'application/json',
+    'x-api-key': API_KEY,
+    ...extra
+  };
+}
 
 // Initialize leaderboard
 function initLeaderboard() {
@@ -11,7 +23,7 @@ function initLeaderboard() {
   if (usernameInput && currentUsername) {
     usernameInput.value = currentUsername;
   }
-  
+
   loadLeaderboard();
 }
 
@@ -28,15 +40,17 @@ function fetchWithTimeout(url, options = {}, timeout = API_TIMEOUT) {
 // Load leaderboard from API
 async function loadLeaderboard() {
   const leaderboardList = document.getElementById('leaderboard-list');
-  
+
   if (leaderboardList) {
     leaderboardList.innerHTML = '<div class="leaderboard-loading">Loading leaderboard...</div>';
   }
-  
+
   try {
-    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`);
+    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
+      headers: getHeaders()
+    });
     const result = await response.json();
-    
+
     if (result.success && result.data) {
       leaderboardData = Array.isArray(result.data) ? result.data : [];
       updateLeaderboardDisplay();
@@ -56,29 +70,29 @@ async function loadLeaderboard() {
 function updateLeaderboardDisplay() {
   const leaderboardList = document.getElementById('leaderboard-list');
   if (!leaderboardList) return;
-  
+
   leaderboardList.innerHTML = '';
-  
+
   if (!leaderboardData || leaderboardData.length === 0) {
     leaderboardList.innerHTML = '<div class="leaderboard-empty">No scores yet. Be the first!</div>';
     return;
   }
-  
+
   leaderboardData.forEach((entry, index) => {
     const row = document.createElement('div');
     row.className = 'leaderboard-row';
-    
+
     if (entry.username && entry.username.toLowerCase() === currentUsername.toLowerCase()) {
       row.classList.add('current-user');
     }
-    
+
     let medal = '';
     if (index === 0) medal = '🥇';
     else if (index === 1) medal = '🥈';
     else if (index === 2) medal = '🥉';
-    
+
     const dateStr = entry.date ? new Date(entry.date).toLocaleDateString() : 'N/A';
-    
+
     row.innerHTML = `
       <span class="leaderboard-rank">${medal || `#${index + 1}`}</span>
       <span class="leaderboard-username">${escapeHtml(entry.username || 'Unknown')}</span>
@@ -86,10 +100,10 @@ function updateLeaderboardDisplay() {
       <span class="leaderboard-date">${dateStr}</span>
       ${isAdminMode() ? `<button class="leaderboard-delete" data-id="${entry.id}">🗑️</button>` : ''}
     `;
-    
+
     leaderboardList.appendChild(row);
   });
-  
+
   if (isAdminMode()) {
     document.querySelectorAll('.leaderboard-delete').forEach(btn => {
       btn.addEventListener('click', (e) => {
@@ -104,31 +118,26 @@ function updateLeaderboardDisplay() {
 async function submitToLeaderboard(score) {
   const usernameInput = document.getElementById('username-input');
   const username = usernameInput ? usernameInput.value.trim() : currentUsername;
-  
+
   if (!username) {
     showToast('Please enter a username first!');
     return false;
   }
-  
+
   if (username.length < 3 || username.length > 20) {
     showToast('Username must be 3-20 characters');
     return false;
   }
-  
+
   try {
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        username, 
-        score
-      })
+      headers: getHeaders(),
+      body: JSON.stringify({ username, score })
     });
-    
+
     const result = await response.json();
-    
+
     if (result.success) {
       currentUsername = username;
       localStorage.setItem('beatdle-username', username);
@@ -145,33 +154,29 @@ async function submitToLeaderboard(score) {
   }
 }
 
-// Delete leaderboard entry (admin only)
+// Delete leaderboard entry (admin only) — deletes by id
 async function deleteLeaderboardEntry(id) {
   const adminPasswordInput = document.getElementById('admin-password-input');
   const adminPassword = adminPasswordInput ? adminPasswordInput.value : '';
-  
+
   if (!adminPassword) {
     showToast('Please enter admin password');
     return;
   }
-  
+
   if (!confirm('Are you sure you want to delete this entry?')) {
     return;
   }
-  
+
   try {
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        adminPassword
-      })
+      headers: getHeaders(),
+      body: JSON.stringify({ adminPassword })
     });
-    
+
     const result = await response.json();
-    
+
     if (result.success) {
       showToast('Entry deleted successfully');
       loadLeaderboard();
@@ -195,7 +200,7 @@ function toggleAdminPanel() {
   if (adminPanel) {
     const isVisible = adminPanel.style.display === 'block';
     adminPanel.style.display = isVisible ? 'none' : 'block';
-    
+
     if (!isVisible) {
       const adminPasswordInput = document.getElementById('admin-password-input');
       if (adminPasswordInput) {
@@ -212,7 +217,7 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
-// Update leaderboard when admin password is entered
+// Update leaderboard when admin password changes
 function onAdminPasswordChange() {
   updateLeaderboardDisplay();
 }
