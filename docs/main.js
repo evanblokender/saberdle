@@ -463,7 +463,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.4.6";
+const APP_VERSION = "2.4.7";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -850,39 +850,46 @@ function playPreview() {
   const startTime = audio.currentTime;
   let animationFrameId = null;
   
-  // Create visualizer animation
-  const updateVisualizer = () => {
+  // Update function for visualizer, progress bar, and timer
+  const updatePlayback = () => {
     if (!isPlaying) return;
     
-    if (visualizer) {
-      // Animate visualizer bars
+    // Update visualizer bars if they exist
+    if (visualizer && visualizer.children.length > 0) {
       const bars = visualizer.querySelectorAll('.bar');
-      bars.forEach((bar, index) => {
-        // Random height variation for animation effect
-        const randomHeight = Math.random() * 100;
-        bar.style.height = randomHeight + '%';
-      });
+      if (bars.length > 0) {
+        bars.forEach((bar) => {
+          const randomHeight = Math.random() * 100;
+          bar.style.height = randomHeight + '%';
+        });
+      }
     }
     
-    // Update progress bar
-    if (audio.duration) {
+    // Update progress bar and timer if elements exist
+    if (progressBar && audio.duration && !isNaN(audio.duration)) {
       const progress = (audio.currentTime / audio.duration) * 100;
-      progressBar.value = progress;
+      progressBar.value = Math.min(100, Math.max(0, progress));
+    }
+    
+    if (currentTimeEl) {
       currentTimeEl.textContent = formatTime(audio.currentTime);
+    }
+    
+    if (totalTimeEl && !isNaN(audio.duration)) {
       totalTimeEl.textContent = formatTime(audio.duration);
     }
     
-    animationFrameId = requestAnimationFrame(updateVisualizer);
+    animationFrameId = requestAnimationFrame(updatePlayback);
   };
   
-  // Start visualizer animation
-  updateVisualizer();
+  // Start updates
+  updatePlayback();
   
   // Check if preview time has elapsed
   previewInterval = setInterval(() => {
     if (audio.currentTime - startTime >= previewTime || audio.ended) {
       audio.pause();
-      audio.currentTime = 0; // Reset to beginning
+      audio.currentTime = 0;
       isPlaying = false;
       clearInterval(previewInterval);
       if (animationFrameId) {
@@ -897,13 +904,21 @@ function playPreview() {
         });
       }
       
-      // Re-enable play button after preview ends
+      // Reset progress bar
+      if (progressBar) {
+        progressBar.value = 0;
+      }
+      
+      // Reset time display
+      if (currentTimeEl) {
+        currentTimeEl.textContent = '0:00';
+      }
+      
+      // Re-enable play button
       playBtn.disabled = false;
       skipBtn.disabled = true;
-      progressBar.value = 0;
-      currentTimeEl.textContent = '0:00';
     }
-  }, 100);
+  }, 50);
   
   playBtn.disabled = true;
   skipBtn.disabled = false;
