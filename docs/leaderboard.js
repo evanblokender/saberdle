@@ -116,10 +116,6 @@ async function submitToLeaderboard(score) {
   }
   
   try {
-    // SECURITY: Send request with current timestamp
-    // Server validates timestamp is recent (prevents replay attacks)
-    const timestamp = Date.now().toString();
-    
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
       headers: {
@@ -127,8 +123,7 @@ async function submitToLeaderboard(score) {
       },
       body: JSON.stringify({ 
         username, 
-        score,
-        timestamp  // Server validates this is within 5 minutes
+        score
       })
     });
     
@@ -142,12 +137,10 @@ async function submitToLeaderboard(score) {
       return true;
     } else {
       showToast(result.message || 'Failed to submit score');
-      console.error('Score submission failed:', result.message);
       return false;
     }
   } catch (error) {
     showToast('Connection error. Please try again.');
-    console.error('Leaderboard submission error:', error);
     return false;
   }
 }
@@ -167,16 +160,13 @@ async function deleteLeaderboardEntry(id) {
   }
   
   try {
-    const timestamp = Date.now().toString();
-    
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
       method: 'DELETE',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
-        adminPassword,
-        timestamp
+        adminPassword
       })
     });
     
