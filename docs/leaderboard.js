@@ -1,21 +1,9 @@
-const LEADERBOARD_API_URL = 'https://leaderboard-saber.onrender.com';
+const LEADERBOARD_API_URL = 'https://saberdle-key.evan758321.workers.dev';
 const API_TIMEOUT = 5000;
-const API_KEY = 'erickgtgamasisbeingabeanis'; // Must match API_KEY in your server .env
 
 // Leaderboard State
 let leaderboardData = [];
 let currentUsername = localStorage.getItem('beatdle-username') || '';
-
-// ========================================
-// Shared fetch headers (includes API key)
-// ========================================
-function getHeaders(extra = {}) {
-  return {
-    'Content-Type': 'application/json',
-    'x-api-key': API_KEY,
-    ...extra
-  };
-}
 
 // Initialize leaderboard
 function initLeaderboard() {
@@ -46,9 +34,7 @@ async function loadLeaderboard() {
   }
 
   try {
-    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
-      headers: getHeaders()
-    });
+    const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`);
     const result = await response.json();
 
     if (result.success && result.data) {
@@ -132,7 +118,7 @@ async function submitToLeaderboard(score) {
   try {
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, score })
     });
 
@@ -171,7 +157,7 @@ async function deleteLeaderboardEntry(id) {
   try {
     const response = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/leaderboard/${id}`, {
       method: 'DELETE',
-      headers: getHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ adminPassword })
     });
 
