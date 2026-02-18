@@ -1213,4 +1213,187 @@ body.modal-open {
     width: 100%;
     justify-content: center;
   }
+  /* ============================================================
+   LOADING SCREEN
+   ============================================================ */
+#loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: linear-gradient(135deg, #0a0e27 0%, #141b3d 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease;
 }
+
+.loading-inner {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.loading-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.loading-emoji {
+  font-size: 3rem;
+  animation: loading-pulse 1.4s ease-in-out infinite alternate;
+}
+
+@keyframes loading-pulse {
+  from { filter: drop-shadow(0 0 6px #7c3aed88); transform: scale(1); }
+  to   { filter: drop-shadow(0 0 20px #a78bfa); transform: scale(1.08); }
+}
+
+.loading-title {
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: 3px;
+  background: linear-gradient(135deg, #7c3aed, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.loading-subtitle {
+  font-size: 0.8rem;
+  color: #475569;
+  letter-spacing: 4px;
+  font-weight: 600;
+  font-family: monospace;
+  margin-bottom: 0.75rem;
+}
+
+.loading-bar-wrap {
+  width: 220px;
+  height: 5px;
+  background: #1e2749;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.loading-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+.loading-status {
+  font-size: 0.72rem;
+  color: #334155;
+  letter-spacing: 1px;
+  font-family: monospace;
+  margin-top: 0.5rem;
+}
+
+/* ============================================================
+   SESSION EXPIRED OVERLAY — uncloseable
+   ============================================================ */
+#session-expired-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(6px);
+}
+
+.session-expired-box {
+  background: #0f1629;
+  border: 2px solid #ef4444;
+  border-radius: 16px;
+  padding: 2.5rem 3rem;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(239, 68, 68, 0.3);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #f8fafc;
+  animation: fadeIn 0.3s ease;
+}
+
+.session-expired-code {
+  font-family: monospace;
+  font-size: 0.72rem;
+  letter-spacing: 3px;
+  color: #ef4444;
+  margin-bottom: 1rem;
+}
+
+.session-expired-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.session-expired-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  color: #f8fafc;
+}
+
+.session-expired-msg {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 1.75rem;
+}
+
+.session-expired-btn {
+  padding: 0.75rem 2.5rem;
+  background: #ef4444;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.session-expired-btn:hover {
+  background: #dc2626;
+}
+
+/* ============================================================
+   USERNAME NAME LOCK UI (in the prompt card)
+   ============================================================ */
+.username-locked-notice {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid #10b981;
+  border-radius: 8px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  color: #10b981;
+  margin-bottom: 0.75rem;
+  text-align: left;
+}
+
+.username-lock-notice {
+  font-size: 0.75rem;
+  color: #f59e0b;
+  margin-top: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+/* ============================================================
+   ADMIN PANEL: unlock section
+   ============================================================ */
+.admin-unlock-section {
+  border-top: 1px solid var(--border);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+ }
