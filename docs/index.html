@@ -5,47 +5,60 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Beatdle - Daily Beat Saber Song Game</title>
   <meta name="description" content="Guess the Beat Saber song from an audio preview. A new song every day!">
-  <link rel="stylesheet" href="style.css?v=2.5.0">
+  <link rel="stylesheet" href="style.css?v=3.0.0">
 </head>
 <body>
+
+  <!-- ===================== LOADING SCREEN ===================== -->
+  <div id="loading-screen">
+    <div class="loading-inner">
+      <div class="loading-logo">
+        <span class="loading-emoji">🎵</span>
+        <span class="loading-title">Beatdle</span>
+      </div>
+      <div class="loading-subtitle">LOADING</div>
+      <div class="loading-bar-wrap">
+        <div class="loading-bar" id="loading-bar"></div>
+      </div>
+      <div class="loading-status" id="loading-status">Initializing...</div>
+    </div>
+  </div>
+
+  <!-- ===================== SESSION EXPIRED (uncloseable) ===================== -->
+  <div id="session-expired-overlay" style="display:none;">
+    <div class="session-expired-box">
+      <div class="session-expired-code">ACCESS_TOKEN_EXPIRED</div>
+      <div class="session-expired-icon">🔒</div>
+      <div class="session-expired-title">Session Disconnected</div>
+      <div class="session-expired-msg">
+        Your session token has expired or you were disconnected.<br>
+        You must refresh the page to continue.
+      </div>
+      <button class="session-expired-btn" onclick="location.reload()">↺ Refresh Page</button>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN GAME ===================== -->
   <header class="header">
     <div class="header-content">
       <h1 class="logo">🎵 Beatdle</h1>
       <div class="header-buttons">
         <button id="leaderboard-btn" class="icon-btn" aria-label="View Leaderboard">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M8 6h13"></path>
-            <path d="M8 12h13"></path>
-            <path d="M8 18h13"></path>
-            <path d="M3 6h.01"></path>
-            <path d="M3 12h.01"></path>
-            <path d="M3 18h.01"></path>
+            <path d="M8 6h13"></path><path d="M8 12h13"></path><path d="M8 18h13"></path>
+            <path d="M3 6h.01"></path><path d="M3 12h.01"></path><path d="M3 18h.01"></path>
           </svg>
         </button>
         <button id="mode-btn" class="icon-btn" aria-label="Change Game Mode">
-  <svg
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <circle cx="12" cy="12" r="2" />
-    <line x1="12" y1="3" x2="12" y2="8" />
-    <line x1="12" y1="16" x2="12" y2="21" />
-    <line x1="3" y1="12" x2="8" y2="12" />
-    <line x1="16" y1="12" x2="21" y2="12" />
-  </svg>
-</button>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="2" /><line x1="12" y1="3" x2="12" y2="8" />
+            <line x1="12" y1="16" x2="12" y2="21" /><line x1="3" y1="12" x2="8" y2="12" />
+            <line x1="16" y1="12" x2="21" y2="12" />
+          </svg>
+        </button>
         <button id="stats-btn" class="icon-btn" aria-label="View Statistics">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 3v18h18"></path>
-            <path d="M18 17V9"></path>
-            <path d="M13 17V5"></path>
-            <path d="M8 17v-3"></path>
+            <path d="M3 3v18h18"></path><path d="M18 17V9"></path><path d="M13 17V5"></path><path d="M8 17v-3"></path>
           </svg>
         </button>
         <button id="help-btn" class="icon-btn" aria-label="How to Play">
@@ -63,6 +76,7 @@
       </div>
     </div>
   </header>
+
   <main class="container">
     <div class="game-card">
       <div class="game-info">
@@ -102,36 +116,22 @@
           </div>
         </div>
         <div class="visualizer">
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
-          <div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
         </div>
       </div>
       <button id="skip-btn" class="skip-button">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 4l10 8-10 8V4z"></path>
-          <line x1="19" y1="5" x2="19" y2="19"></line>
+          <path d="M5 4l10 8-10 8V4z"></path><line x1="19" y1="5" x2="19" y2="19"></line>
         </svg>
         Skip (+2s preview)
       </button>
       <div class="input-section">
         <div class="input-wrapper">
           <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"></circle>
-            <path d="m21 21-4.35-4.35"></path>
+            <circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path>
           </svg>
-          <input 
-            id="guess-input" 
-            type="text" 
-            placeholder="Search for a song..."
-            autocomplete="off"
-            spellcheck="false"
-          >
+          <input id="guess-input" type="text" placeholder="Search for a song..." autocomplete="off" spellcheck="false">
         </div>
         <div id="autocomplete-results" class="autocomplete-results"></div>
       </div>
@@ -140,105 +140,59 @@
         <div class="result-message" id="result-message"></div>
         <button id="share-btn" class="share-button">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="18" cy="5" r="3"></circle>
-            <circle cx="6" cy="12" r="3"></circle>
-            <circle cx="18" cy="19" r="3"></circle>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            <circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
           </svg>
           Share Result
         </button>
         <button id="reset-btn" class="reset-button" style="display: none;">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-            <path d="M21 3v5h-5"></path>
-            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-            <path d="M3 21v-5h5"></path>
+            <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path>
+            <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M3 21v-5h5"></path>
           </svg>
           Next Song
         </button>
-        <div class="next-game">
-          Next Beatdle in <span id="countdown">--:--:--</span>
-        </div>
+        <div class="next-game">Next Beatdle in <span id="countdown">--:--:--</span></div>
       </div>
     </div>
   </main>
+
+  <!-- Help Modal -->
   <div id="help-modal" class="modal">
     <div class="modal-content">
-      <div class="modal-header">
-        <h2>How to Play</h2>
-        <button class="modal-close" aria-label="Close">&times;</button>
-      </div>
+      <div class="modal-header"><h2>How to Play</h2><button class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <p>Guess the Beat Saber song from an audio preview!</p>
-        <div class="instruction">
-          <div class="instruction-icon">🎵</div>
-          <div>
-            <strong>Listen to the preview</strong>
-            <p>Start with a 3-second clip of the song</p>
-          </div>
-        </div>
-        <div class="instruction">
-          <div class="instruction-icon">🔍</div>
-          <div>
-            <strong>Make your guess</strong>
-            <p>Type to search for ranked Beat Saber songs</p>
-          </div>
-        </div>
-        <div class="instruction">
-          <div class="instruction-icon">⏭️</div>
-          <div>
-            <strong>Skip to unlock more</strong>
-            <p>Each skip or wrong guess adds 2 seconds to the preview</p>
-          </div>
-        </div>
-        <div class="instruction">
-          <div class="instruction-icon">🎯</div>
-          <div>
-            <strong>Win or learn</strong>
-            <p>You have 6 attempts to guess the song correctly!</p>
-          </div>
-        </div>
+        <div class="instruction"><div class="instruction-icon">🎵</div><div><strong>Listen to the preview</strong><p>Start with a 3-second clip of the song</p></div></div>
+        <div class="instruction"><div class="instruction-icon">🔍</div><div><strong>Make your guess</strong><p>Type to search for ranked Beat Saber songs</p></div></div>
+        <div class="instruction"><div class="instruction-icon">⏭️</div><div><strong>Skip to unlock more</strong><p>Each skip or wrong guess adds 2 seconds to the preview</p></div></div>
+        <div class="instruction"><div class="instruction-icon">🎯</div><div><strong>Win or learn</strong><p>You have 6 attempts to guess the song correctly!</p></div></div>
         <p class="note">A new song is available every day at 1 AM EST</p>
       </div>
     </div>
   </div>
+
+  <!-- Stats Modal -->
   <div id="stats-modal" class="modal">
     <div class="modal-content">
-      <div class="modal-header">
-        <h2>Statistics</h2>
-        <button class="modal-close" aria-label="Close">&times;</button>
-      </div>
+      <div class="modal-header"><h2>Statistics</h2><button class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-value" id="stat-played">0</div>
-            <div class="stat-label">Played</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="stat-wins">0</div>
-            <div class="stat-label">Wins</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="stat-streak">0</div>
-            <div class="stat-label">Current Streak</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value" id="stat-max-streak">0</div>
-            <div class="stat-label">Max Streak</div>
-          </div>
+          <div class="stat-item"><div class="stat-value" id="stat-played">0</div><div class="stat-label">Played</div></div>
+          <div class="stat-item"><div class="stat-value" id="stat-wins">0</div><div class="stat-label">Wins</div></div>
+          <div class="stat-item"><div class="stat-value" id="stat-streak">0</div><div class="stat-label">Current Streak</div></div>
+          <div class="stat-item"><div class="stat-value" id="stat-max-streak">0</div><div class="stat-label">Max Streak</div></div>
         </div>
         <h3>Guess Distribution</h3>
         <div class="distribution" id="distribution"></div>
       </div>
     </div>
   </div>
+
+  <!-- Mode Modal -->
   <div id="mode-modal" class="modal">
     <div class="modal-content">
-      <div class="modal-header">
-        <h2>Select Game Mode</h2>
-        <button class="modal-close" aria-label="Close">&times;</button>
-      </div>
+      <div class="modal-header"><h2>Select Game Mode</h2><button class="modal-close" aria-label="Close">&times;</button></div>
       <div class="modal-body">
         <div class="mode-selector">
           <button class="mode-option" data-mode="daily">
@@ -255,6 +209,8 @@
       </div>
     </div>
   </div>
+
+  <!-- Leaderboard Modal -->
   <div id="leaderboard-modal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -265,10 +221,8 @@
         <div class="leaderboard-controls">
           <button id="refresh-leaderboard-btn" class="secondary-button">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
-              <path d="M21 3v5h-5"></path>
-              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path>
-              <path d="M3 21v-5h5"></path>
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M3 21v-5h5"></path>
             </svg>
             Refresh
           </button>
@@ -281,14 +235,16 @@
           </button>
         </div>
         <div id="admin-panel" class="admin-panel" style="display: none;">
-          <input 
-            type="password" 
-            id="admin-password-input" 
-            placeholder="Enter admin password" 
+          <input type="password" id="admin-password-input" placeholder="Enter admin password"
             class="admin-password-input"
-            onchange="window.leaderboardAPI && window.leaderboardAPI.onAdminPasswordChange()"
-          />
-          <p class="admin-note">Enter admin password to delete entries</p>
+            oninput="window.leaderboardAPI && window.leaderboardAPI.onAdminPasswordChange()" />
+          <div class="admin-unlock-section">
+            <input type="text" id="admin-unlock-username" placeholder="Username to unlock name" class="admin-password-input" style="margin-top:0.5rem;" />
+            <button id="admin-unlock-btn" class="secondary-button" style="margin-top:0.5rem;width:100%;justify-content:center;">
+              🔓 Unlock Player Name
+            </button>
+          </div>
+          <p class="admin-note">Enter admin password to delete entries or unlock player names</p>
         </div>
         <div class="leaderboard-header">
           <span class="leaderboard-col">Rank</span>
@@ -302,93 +258,115 @@
       </div>
     </div>
   </div>
+
+  <!-- Username Prompt -->
   <div id="username-prompt" class="username-prompt" style="display: none;">
     <div class="username-prompt-content">
       <h3>Submit to Leaderboard</h3>
       <p>Your score: <strong id="score-display">0</strong></p>
-      <input 
-        type="text" 
-        id="username-input" 
-        placeholder="Enter username (3-20 chars)" 
-        maxlength="20"
-        class="username-input"
-      />
+      <div id="username-locked-msg" class="username-locked-notice" style="display:none;">
+        ✅ Locked in as: <strong id="locked-name-display"></strong>
+      </div>
+      <input type="text" id="username-input" placeholder="Enter username (3-20 chars)" maxlength="20" class="username-input" />
+      <p id="username-lock-notice" class="username-lock-notice">⚠️ This name will be permanently locked once submitted.</p>
       <div class="username-prompt-buttons">
-        <button id="submit-score-btn" class="primary-button">Submit Score</button>
+        <button id="submit-score-btn" class="primary-button">Lock In &amp; Submit</button>
         <button id="skip-submit-btn" class="secondary-button">Skip</button>
       </div>
     </div>
   </div>
+
   <div id="toast" class="toast"></div>
-  <script src="leaderboard.js?v=2.5.0"></script>
-  <script src="main.js?v=2.5.0"></script>
-  <script src="anti-cheat.js?v=2.5.0"></script>
+
+  <script src="leaderboard.js?v=4.0.0"></script>
+  <script src="main.js?v=4.0.0"></script>
+  <script src="anti-cheat.js?v=4.0.0"></script>
+
   <script>
+    // ── Origin check (warn in console if not on evanblokender.org) ──────────
+    (function () {
+      const host = window.location.hostname;
+      const allowed = ['evanblokender.org', 'www.evanblokender.org', 'localhost', '127.0.0.1'];
+      if (!allowed.includes(host)) {
+        console.warn('[Beatdle] Unauthorized origin:', host);
+      }
+    })();
+
+    // ── Loading screen helpers (called by leaderboard.js) ────────────────────
+    function setLoadingProgress(pct, msg) {
+      const bar    = document.getElementById('loading-bar');
+      const status = document.getElementById('loading-status');
+      if (bar)    bar.style.width = pct + '%';
+      if (status && msg) status.textContent = msg;
+    }
+    function hideLoadingScreen() {
+      const screen = document.getElementById('loading-screen');
+      if (!screen) return;
+      setLoadingProgress(100, 'Ready!');
+      screen.style.opacity = '0';
+      setTimeout(() => screen.remove(), 500);
+    }
+
+    // ── Session expired overlay (called by leaderboard.js) ───────────────────
+    function showSessionExpired() {
+      const overlay = document.getElementById('session-expired-overlay');
+      if (overlay) overlay.style.display = 'flex';
+    }
+    window.setLoadingProgress  = setLoadingProgress;
+    window.hideLoadingScreen   = hideLoadingScreen;
+    window.showSessionExpired  = showSessionExpired;
+
+    // ── Wire up UI after DOM ready ────────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', () => {
-      const leaderboardBtn = document.getElementById('leaderboard-btn');
+      setLoadingProgress(10, 'Checking origin...');
+
+      const leaderboardBtn   = document.getElementById('leaderboard-btn');
       const leaderboardModal = document.getElementById('leaderboard-modal');
-      const refreshBtn = document.getElementById('refresh-leaderboard-btn');
-      const toggleAdminBtn = document.getElementById('toggle-admin-btn');
-      const submitScoreBtn = document.getElementById('submit-score-btn');
-      const skipSubmitBtn = document.getElementById('skip-submit-btn');
-      
-      if (leaderboardBtn) {
-        leaderboardBtn.addEventListener('click', () => {
-          if (leaderboardModal) {
-            leaderboardModal.classList.add('show');
-            document.body.classList.add('modal-open');
-            if (window.leaderboardAPI) {
-              window.leaderboardAPI.load();
-            }
-          }
-        });
-      }
-      
-      if (refreshBtn && window.leaderboardAPI) {
-        refreshBtn.addEventListener('click', () => {
-          window.leaderboardAPI.load();
-          showToast('Refreshing leaderboard...');
-        });
-      }
-      
-      if (toggleAdminBtn && window.leaderboardAPI) {
-        toggleAdminBtn.addEventListener('click', () => {
-          window.leaderboardAPI.toggleAdmin();
-        });
-      }
-      
-      if (submitScoreBtn && window.leaderboardAPI) {
-        submitScoreBtn.addEventListener('click', async () => {
-          const score = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
-          const success = await window.leaderboardAPI.submit(score);
-          if (success) {
-            window.leaderboardAPI.hidePrompt();
-          }
-        });
-      }
-      
-      if (skipSubmitBtn && window.leaderboardAPI) {
-        skipSubmitBtn.addEventListener('click', () => {
-          window.leaderboardAPI.hidePrompt();
-        });
-      }
-      
-      const leaderboardClose = leaderboardModal?.querySelector('.modal-close');
-      if (leaderboardClose) {
-        leaderboardClose.addEventListener('click', () => {
-          leaderboardModal.classList.remove('show');
-          document.body.classList.remove('modal-open');
-        });
-      }
-      
-      if (typeof infiniteScore !== 'undefined') {
-        const scoreDisplay = document.getElementById('score-display');
-        if (scoreDisplay) {
-          setInterval(() => {
-            scoreDisplay.textContent = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
-          }, 100);
-        }
-      }
+      const refreshBtn       = document.getElementById('refresh-leaderboard-btn');
+      const toggleAdminBtn   = document.getElementById('toggle-admin-btn');
+      const submitScoreBtn   = document.getElementById('submit-score-btn');
+      const skipSubmitBtn    = document.getElementById('skip-submit-btn');
+      const adminUnlockBtn   = document.getElementById('admin-unlock-btn');
+
+      leaderboardBtn?.addEventListener('click', () => {
+        leaderboardModal?.classList.add('show');
+        document.body.classList.add('modal-open');
+        window.leaderboardAPI?.load();
+      });
+
+      refreshBtn?.addEventListener('click', () => {
+        window.leaderboardAPI?.load();
+        showToast('Refreshing leaderboard...');
+      });
+
+      toggleAdminBtn?.addEventListener('click', () => {
+        window.leaderboardAPI?.toggleAdmin();
+      });
+
+      submitScoreBtn?.addEventListener('click', async () => {
+        const score = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
+        const success = await window.leaderboardAPI?.submit(score);
+        if (success) window.leaderboardAPI?.hidePrompt();
+      });
+
+      skipSubmitBtn?.addEventListener('click', () => {
+        window.leaderboardAPI?.hidePrompt();
+      });
+
+      adminUnlockBtn?.addEventListener('click', async () => {
+        await window.leaderboardAPI?.adminUnlockName();
+      });
+
+      leaderboardModal?.querySelector('.modal-close')?.addEventListener('click', () => {
+        leaderboardModal.classList.remove('show');
+        document.body.classList.remove('modal-open');
+      });
+
+      // Sync score display
+      setInterval(() => {
+        const el = document.getElementById('score-display');
+        if (el) el.textContent = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
+      }, 100);
     });
   </script>
 </body>
