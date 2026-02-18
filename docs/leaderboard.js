@@ -1,9 +1,11 @@
 /**
- * leaderboard.js v3.1.0
- * - Session token: fetched on load, lives forever while SSE connection is open
- * - Token is invalidated ONLY when the SSE connection drops (tab close, network loss, etc.)
- * - On disconnect: server marks token dead → next API call returns 401 → uncloseable dialog
- * - Name lock: stored in cookie after first submit
+ * leaderboard.js v3.2.0
+ * - Session token fetched on load, lives forever while heartbeats are sent
+ * - Client sends a heartbeat ping every 20s — if it stops (tab closed, network lost)
+ *   the server marks the token dead after 60s grace period
+ * - Next API call after disconnect returns 401 → uncloseable ACCESS_TOKEN_EXPIRED dialog
+ * - Works with Cloudflare Worker proxy (no SSE/persistent connection needed)
+ * - Name lock via cookie on first submit
  * - Admin: delete entries + unlock player name locks
  */
 
@@ -12,10 +14,11 @@ const API_TIMEOUT         = 8000;
 const COOKIE_NAME         = 'beatdle_username';
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let leaderboardData = [];
-let currentUsername = '';
-let sessionToken    = null;
-let sseConnection   = null; // The EventSource object
+let leaderboardData    = [];
+let currentUsername    = '';
+let sessionToken       = null;
+let heartbeatInterval  = null;
+let heartbeatMs        = 20000; // default, overridden by server response
 
 // ─── Cookie helpers ───────────────────────────────────────────────────────────
 function setCookie(name, value, days) {
@@ -51,12 +54,11 @@ async function authFetch(url, options = {}) {
 
   const res = await fetchWithTimeout(url, { ...options, headers });
 
-  // Server tells us the connection was dropped and token is dead
   if (res.status === 401) {
     const body = await res.json().catch(() => ({}));
     if (body.code === 'SESSION_EXPIRED' || body.code === 'SESSION_INVALID') {
+      _stopHeartbeat();
       sessionToken = null;
-      _closeSse();
       window.showSessionExpired?.();
       throw new Error('SESSION_EXPIRED');
     }
@@ -65,35 +67,40 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
-// ─── SSE Connection ───────────────────────────────────────────────────────────
-// Opens a persistent Server-Sent Events stream to the server.
-// While this stream is open, the server keeps the token alive.
-// The moment it closes (tab close, network drop, etc.) the server
-// marks the token as disconnected — the next API call will return 401.
-function _openSse(token) {
-  _closeSse(); // Close any existing connection first
+// ─── Heartbeat ────────────────────────────────────────────────────────────────
+// Pings the server every heartbeatMs to prove the tab is still open.
+// If pings stop (tab close, network loss), server marks token dead after grace period.
+// On reconnect, the next authFetch will get a 401 and show the expired dialog.
+function _startHeartbeat() {
+  _stopHeartbeat();
+  heartbeatInterval = setInterval(async () => {
+    if (!sessionToken) { _stopHeartbeat(); return; }
+    try {
+      const res = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/session/heartbeat`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', 'x-session-token': sessionToken }
+      }, 5000);
 
-  // Pass token as query param since EventSource doesn't support custom headers
-  const url = `${LEADERBOARD_API_URL}/api/session/connect?token=${token}`;
-  sseConnection = new EventSource(url);
-
-  sseConnection.addEventListener('connected', () => {
-    console.log('[Beatdle] SSE connection established — session live');
-  });
-
-  sseConnection.onerror = () => {
-    // EventSource will auto-retry on transient errors.
-    // We only care if it permanently fails after retries — but the server
-    // will have already marked the token dead on the first close event.
-    // So we just let the next authFetch() surface the 401 naturally.
-    console.warn('[Beatdle] SSE error — server will invalidate token on disconnect');
-  };
+      if (res.status === 401) {
+        const body = await res.json().catch(() => ({}));
+        if (body.code === 'SESSION_EXPIRED' || body.code === 'SESSION_INVALID') {
+          _stopHeartbeat();
+          sessionToken = null;
+          window.showSessionExpired?.();
+        }
+      }
+    } catch {
+      // Network blip — don't show dialog yet, server has grace period
+      // If it persists long enough the server will kill the token,
+      // and the next real action (play, submit) will surface the 401
+    }
+  }, heartbeatMs);
 }
 
-function _closeSse() {
-  if (sseConnection) {
-    sseConnection.close();
-    sseConnection = null;
+function _stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
   }
 }
 
@@ -102,7 +109,7 @@ async function fetchSessionToken() {
   window.setLoadingProgress?.(30, 'Connecting to server...');
 
   const res = await fetchWithTimeout(`${LEADERBOARD_API_URL}/api/session`, {
-    method: 'POST',
+    method:  'POST',
     headers: { 'Content-Type': 'application/json' }
   });
 
@@ -111,6 +118,10 @@ async function fetchSessionToken() {
   if (!data.success || !data.token) throw new Error('No token in response');
 
   sessionToken = data.token;
+
+  // Server tells us how often it expects heartbeats
+  if (data.heartbeatInterval) heartbeatMs = data.heartbeatInterval;
+
   return data.token;
 }
 
@@ -129,19 +140,13 @@ async function initLeaderboard() {
 
   try {
     window.setLoadingProgress?.(20, 'Starting session...');
-
-    // Step 1: Get a session token from the server
     await fetchSessionToken();
 
-    // Step 2: Open SSE stream — this is what keeps the token alive
-    // Token is only invalidated when THIS connection drops
-    window.setLoadingProgress?.(45, 'Opening connection...');
-    _openSse(sessionToken);
+    // Start heartbeat immediately after getting token
+    window.setLoadingProgress?.(50, 'Establishing connection...');
+    _startHeartbeat();
 
-    // Small delay to let the SSE handshake complete before we load data
-    await new Promise(r => setTimeout(r, 300));
-
-    window.setLoadingProgress?.(60, 'Loading leaderboard...');
+    window.setLoadingProgress?.(65, 'Loading leaderboard...');
 
     // Restore locked username from cookie
     const saved = getCookie(COOKIE_NAME);
@@ -155,7 +160,7 @@ async function initLeaderboard() {
 
   } catch (err) {
     console.error('[Beatdle] Init error:', err);
-    // Let the game run even if leaderboard fails — don't block gameplay
+    // Don't block game — leaderboard just won't work
   }
 
   window.hideLoadingScreen?.();
@@ -226,7 +231,7 @@ async function submitToLeaderboard(score) {
   const input      = document.getElementById('username-input');
   const username   = lockedName || (input ? input.value.trim() : '');
 
-  if (!username)                              { showToast('Please enter a username!');           return false; }
+  if (!username)                                   { showToast('Please enter a username!');           return false; }
   if (username.length < 3 || username.length > 20) { showToast('Username must be 3–20 characters'); return false; }
 
   try {
@@ -257,7 +262,7 @@ async function submitToLeaderboard(score) {
   }
 }
 
-// ─── Name Lock UI helpers ─────────────────────────────────────────────────────
+// ─── Name Lock UI ─────────────────────────────────────────────────────────────
 function _applyNameLockUI(name) {
   const input      = document.getElementById('username-input');
   const lockedMsg  = document.getElementById('username-locked-msg');
@@ -274,7 +279,7 @@ function _applyNameLockUI(name) {
 async function deleteEntry(id) {
   const pwInput       = document.getElementById('admin-password-input');
   const adminPassword = pwInput?.value || '';
-  if (!adminPassword)              { showToast('Enter admin password first'); return; }
+  if (!adminPassword)               { showToast('Enter admin password first'); return; }
   if (!confirm('Delete this entry?')) return;
 
   try {
@@ -310,7 +315,7 @@ async function adminUnlockName() {
     const result = await res.json();
     showToast(result.success ? `✅ "${username}" name lock removed` : (result.message || 'Failed'));
     if (usernameInput) usernameInput.value = '';
-  } catch (err) {
+  } catch {
     showToast('Connection error during unlock.');
   }
 }
@@ -365,8 +370,8 @@ function escapeHtml(text) {
 // ─── Export ───────────────────────────────────────────────────────────────────
 if (typeof window !== 'undefined') {
   window.leaderboardAPI = {
-    init:  initLeaderboard,
-    load:  loadLeaderboard,
+    init:   initLeaderboard,
+    load:   loadLeaderboard,
     submit: submitToLeaderboard,
     showPrompt:  showUsernamePrompt,
     hidePrompt:  hideUsernamePrompt,
