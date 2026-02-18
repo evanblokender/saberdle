@@ -18,7 +18,7 @@ let encryptedAnswer = "";
 let actualAnswer = ""; // The real answer, hidden from console inspection
 
 // Version for cache busting
-const APP_VERSION = "2.5.0";
+const APP_VERSION = "4.0.0";
 
 // DOM Elements
 const audio = document.getElementById("audio");
@@ -50,27 +50,68 @@ const statsModal = document.getElementById("stats-modal");
 const modeModal = document.getElementById("mode-modal");
 const toast = document.getElementById("toast");
 
-// Initialize
-init();
+// ─── NEW: Lock/unlock game controls ──────────────────────────────────────────
+// Controls are locked during loading so nothing is clickable before session is ready
+function lockGameControls() {
+  if (playBtn)    playBtn.disabled    = true;
+  if (skipBtn)    skipBtn.disabled    = true;
+  if (guessInput) guessInput.disabled = true;
+}
 
-function init() {
+function unlockGameControls() {
+  if (!gameOver) {
+    if (playBtn)    playBtn.disabled    = false;
+    if (skipBtn)    skipBtn.disabled    = false;
+    if (guessInput) guessInput.disabled = false;
+  }
+}
+
+// Lock immediately so nothing is clickable while loading screen is up
+lockGameControls();
+
+// ─── NEW: async init — waits for session token before starting the game ───────
+async function init() {
   checkVersion();
   loadTheme();
   loadGameMode();
-  if (gameMode === "daily") {
-    loadDaily();
-  } else {
-    loadInfiniteMode();
-  }
   setupEventListeners();
   updateCountdown();
   setInterval(updateCountdown, 1000);
-  
-  // Initialize leaderboard if available
+
+  // Step 1: Init leaderboard first — this fetches the session token
+  // and drives the loading screen progress bar
+  window.setLoadingProgress?.(5, 'Starting up...');
+
   if (window.leaderboardAPI) {
-    window.leaderboardAPI.init();
+    try {
+      await window.leaderboardAPI.init();
+    } catch (err) {
+      // leaderboard.js will have already called showSessionExpired()
+      console.error('[Beatdle] Session init failed, game locked:', err);
+      return; // Stop here — do not unlock controls
+    }
+  } else {
+    // Fallback: no leaderboard.js, just hide loading and continue
+    window.hideLoadingScreen?.();
   }
+
+  // Step 2: Session confirmed — now load the song
+  window.setLoadingProgress?.(80, 'Loading song...');
+
+  if (gameMode === "daily") {
+    await loadDaily();
+  } else {
+    await loadInfiniteMode();
+  }
+
+  // Step 3: Everything ready — unlock controls
+  unlockGameControls();
 }
+
+// Run init once DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+  init();
+});
 
 // Version Management (Cache Busting)
 function checkVersion() {
@@ -163,7 +204,8 @@ function updateModeDisplay() {
   }
 }
 
-function switchMode(newMode) {
+// ─── UPDATED: switchMode is async so controls stay locked during song load ────
+async function switchMode(newMode) {
   console.log(`Switching from ${gameMode} to ${newMode}`);
   
   if (gameMode === newMode) {
@@ -175,19 +217,21 @@ function switchMode(newMode) {
     gameMode = newMode;
     saveGameMode();
     
+    // Lock controls during the switch so player can't interact mid-load
+    lockGameControls();
+    
     // Reset game state FIRST before loading
     console.log("Resetting game...");
     resetGame();
     
     // Prevent restoration of saved state when switching modes
-    // by temporarily setting a flag
     const skipRestore = true;
     
     console.log(`Loading ${gameMode} mode...`);
     if (gameMode === "daily") {
-      loadDaily(skipRestore);
+      await loadDaily(skipRestore);
     } else {
-      loadInfiniteMode();
+      await loadInfiniteMode();
     }
     
     console.log("Updating mode display...");
@@ -198,11 +242,13 @@ function switchMode(newMode) {
       closeModal(modeModal);
     }
     
+    unlockGameControls();
     showToast(`Switched to ${gameMode === "daily" ? "Daily" : "Infinite"} Mode`);
     console.log("Mode switch complete!");
   } catch (error) {
     console.error("Error switching modes:", error);
     showToast("Error switching modes. Please refresh the page.");
+    unlockGameControls();
   }
 }
 
@@ -304,9 +350,11 @@ function saveInfiniteScore() {
   localStorage.setItem("beatdle-infinite-score", infiniteScore.toString());
 }
 
+// ─── UPDATED: lock controls while next song loads ─────────────────────────────
 function nextInfiniteSong() {
   resetGame();
-  loadInfiniteMode();
+  lockGameControls();
+  loadInfiniteMode().then(() => unlockGameControls());
 }
 
 // Theme Management
