@@ -18,7 +18,60 @@ let leaderboardData    = [];
 let currentUsername    = '';
 let sessionToken       = null;
 let heartbeatInterval  = null;
-let heartbeatMs        = 20000; // default, overridden by server response
+let heartbeatMs        = 3000;  // default, overridden by server response
+
+// ─── Fetch interceptor ────────────────────────────────────────────────────────
+// Wraps window.fetch for all LEADERBOARD_API_URL calls:
+//   • Auto-attaches x-session-token header
+//   • On 401 SESSION_EXPIRED: silently POSTs /api/session to get a fresh token,
+//     then retries the original request — no uncloseable dialog shown
+//   • On second 401 (can't recover): falls through to normal authFetch handling
+;(function _installFetchInterceptor() {
+  const _native = window.fetch;
+
+  async function _refreshToken() {
+    try {
+      const res  = await _native(`${LEADERBOARD_API_URL}/api/session`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) return null;
+      const d = await res.json();
+      return (d.success && d.token) ? d.token : null;
+    } catch { return null; }
+  }
+
+  window.fetch = async function(input, init = {}) {
+    const url = typeof input === 'string' ? input : (input?.url ?? '');
+
+    // Only intercept our own API
+    if (!url.startsWith(LEADERBOARD_API_URL)) return _native(input, init);
+
+    // Inject current session token
+    if (sessionToken) {
+      init = { ...init, headers: { ...(init.headers || {}), 'x-session-token': sessionToken } };
+    }
+
+    let res = await _native(input, init);
+
+    // On 401: silently refresh and retry once
+    if (res.status === 401) {
+      const body = await res.clone().json().catch(() => ({}));
+      if (body.code === 'SESSION_EXPIRED' || body.code === 'SESSION_INVALID') {
+        const newToken = await _refreshToken();
+        if (newToken) {
+          sessionToken = newToken;
+          _stopHeartbeat();
+          _startHeartbeat();
+          init = { ...init, headers: { ...(init.headers || {}), 'x-session-token': newToken } };
+          res  = await _native(input, init);
+        }
+        // If still 401 after retry, fall through — authFetch will call showSessionExpired
+      }
+    }
+
+    return res;
+  };
+})();
 
 // ─── Cookie helpers ───────────────────────────────────────────────────────────
 function setCookie(name, value, days) {
