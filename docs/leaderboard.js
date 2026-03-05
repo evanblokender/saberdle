@@ -1,3 +1,16 @@
+/**
+ * leaderboard.js v3.3.0
+ * - Session token fetched on load, lives forever while heartbeats are sent
+ * - Client sends a heartbeat ping every 20s — if it stops (tab closed, network lost)
+ *   the server marks the token dead after 60s grace period
+ * - Next API call after disconnect returns 401 → uncloseable ACCESS_TOKEN_EXPIRED dialog
+ * - Works with Cloudflare Worker proxy (no SSE/persistent connection needed)
+ * - Name lock via cookie on first submit
+ * - Admin: slither.io-style floating panel (orange/yellow theme)
+ *         password-gated — panel only unlocks after correct password
+ *         features: delete entries, unlock player names, view stats, ban player
+ */
+
 const LEADERBOARD_API_URL = 'https://saberdle-key.evan758321.workers.dev';
 const API_TIMEOUT         = 8000;
 const COOKIE_NAME         = 'beatdle_username';
@@ -155,7 +168,21 @@ async function initLeaderboard() {
     console.error('[Beatdle] Init error:', err);
   }
   window.hideLoadingScreen?.();
-  _injectAdminPanel();
+
+  // ── Secret combo: hold Enter + Backspace to reveal admin panel ──────────
+  const _keysDown = new Set();
+  document.addEventListener('keydown', (e) => {
+    _keysDown.add(e.key);
+    if (_keysDown.has('Enter') && _keysDown.has('Backspace')) {
+      const existing = document.getElementById('__adminPanel');
+      if (existing) {
+        existing.style.display = existing.style.display === 'none' ? 'block' : 'none';
+      } else {
+        _injectAdminPanel();
+      }
+    }
+  });
+  document.addEventListener('keyup', (e) => _keysDown.delete(e.key));
 }
 
 // ─── Load Leaderboard ─────────────────────────────────────────────────────────
@@ -299,9 +326,7 @@ function isAdminMode() {
 }
 
 function toggleAdminPanel() {
-  const panel = document.getElementById('__adminPanel');
-  if (!panel) return;
-  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  // Panel is revealed via Enter+Backspace combo only — not the Admin button
 }
 
 function onAdminPasswordChange() {
@@ -388,12 +413,223 @@ function _getAdminMenus() {
       title: '🎵 BEATDLE: ADMIN[1/1]',
       items: [
         { label: 'Panel Settings',     type: 'submenu', target: 'settings'  },
+        { label: '→ Exploits',         type: 'submenu', target: 'exploits'  },
         { label: '→ Entries',          type: 'submenu', target: 'entries'   },
         { label: 'Player Tools',       type: 'submenu', target: 'players'   },
         { label: 'Leaderboard',        type: 'submenu', target: 'lb'        },
         { label: 'Session & Server',   type: 'submenu', target: 'session'   },
         { label: 'Lock & Security',    type: 'submenu', target: 'security'  },
         { label: 'Debug & Tools',      type: 'submenu', target: 'debug'     },
+      ]
+    },
+
+    // ── EXPLOITS ────────────────────────────────────────────────────────────
+    exploits: {
+      title: '→ Exploits',
+      items: [
+        { label: 'INFO: Game cheats',          type: 'info' },
+
+        // ── Answer reveal ──────────────────────────────────────────────────
+        { label: 'Reveal Answer',              type: 'action', action: () => {
+            try {
+              // Method 1: decrypt via anti-cheat module
+              if (window.antiCheat && typeof encryptedAnswer !== 'undefined' && encryptedAnswer) {
+                const ans = window.antiCheat.decrypt(encryptedAnswer);
+                _adminLog('Answer: ' + ans);
+                showToast('Answer: ' + ans);
+                return;
+              }
+              // Method 2: read answerDisplay (shown after game over)
+              if (typeof answerDisplay !== 'undefined' && answerDisplay) {
+                _adminLog('Answer: ' + answerDisplay);
+                showToast('Answer: ' + answerDisplay);
+                return;
+              }
+              // Method 3: read answer directly
+              if (typeof answer !== 'undefined' && answer) {
+                _adminLog('Answer: ' + answer);
+                showToast('Answer: ' + answer);
+                return;
+              }
+              _adminLog('No answer found — load a song first', '#ff6633');
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Auto answer ───────────────────────────────────────────────────
+        { label: 'Auto Answer (submit now)',   type: 'action', action: () => {
+            try {
+              let ans = null;
+              if (window.antiCheat && typeof encryptedAnswer !== 'undefined' && encryptedAnswer) {
+                ans = window.antiCheat.decrypt(encryptedAnswer);
+              } else if (typeof answerDisplay !== 'undefined' && answerDisplay) {
+                ans = answerDisplay;
+              } else if (typeof answer !== 'undefined' && answer) {
+                ans = answer;
+              }
+              if (!ans) { _adminLog('No answer found', '#ff6633'); return; }
+
+              // Bypass anti-cheat devtools flag before submitting
+              if (window.antiCheat) {
+                window.antiCheat.devToolsDetected = false;
+                window.antiCheat.devToolsOpen     = false;
+              }
+
+              if (typeof submitGuess === 'function') {
+                submitGuess(ans);
+                _adminLog('Auto-answered: ' + ans);
+              } else {
+                // Fallback: type into input + fire autocomplete click
+                const input = document.getElementById('guess-input');
+                if (input) { input.value = ans; input.dispatchEvent(new Event('input')); }
+                _adminLog('Typed answer — select from dropdown', '#ffcc44');
+              }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Auto-win loop ─────────────────────────────────────────────────
+        { label: 'Auto-Win Every Song',        type: 'toggle', id: 'autowin', action: (on) => {
+            if (!on) { _adminLog('Auto-win OFF'); return; }
+            const _tryWin = () => {
+              if (!_adminToggles['autowin']) return;
+              try {
+                let ans = null;
+                if (window.antiCheat && typeof encryptedAnswer !== 'undefined' && encryptedAnswer) {
+                  ans = window.antiCheat.decrypt(encryptedAnswer);
+                } else if (typeof answerDisplay !== 'undefined' && answerDisplay) {
+                  ans = answerDisplay;
+                } else if (typeof answer !== 'undefined' && answer) {
+                  ans = answer;
+                }
+                if (ans && typeof submitGuess === 'function' && typeof gameOver !== 'undefined' && !gameOver) {
+                  if (window.antiCheat) { window.antiCheat.devToolsDetected = false; window.antiCheat.devToolsOpen = false; }
+                  submitGuess(ans);
+                }
+              } catch(e) {}
+              setTimeout(_tryWin, 2000);
+            };
+            _tryWin();
+            _adminLog('Auto-win ON — answers each song automatically');
+        }},
+
+        // ── Score hacks ───────────────────────────────────────────────────
+        { label: 'Set Infinite Score: 99',     type: 'action', action: () => {
+            try {
+              if (typeof infiniteScore !== 'undefined') {
+                // eslint-disable-next-line no-global-assign
+                window.infiniteScore = 99;
+                // Try writing via eval bypass (anti-cheat already running)
+                const el = document.getElementById('infinite-score');
+                if (el) el.textContent = 99;
+                localStorage.setItem('beatdle-infinite-score', '99');
+                _adminLog('Score set to 99');
+                showToast('Infinite score: 99');
+              }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+        { label: 'Set Infinite Score (prompt)',type: 'action', action: () => {
+            const n = parseInt(prompt('Set infinite score to:', '50'), 10);
+            if (isNaN(n)) return;
+            try {
+              window.infiniteScore = n;
+              const el = document.getElementById('infinite-score');
+              if (el) el.textContent = n;
+              localStorage.setItem('beatdle-infinite-score', String(n));
+              _adminLog('Score set to ' + n);
+              showToast('Score: ' + n);
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Anti-cheat bypass ─────────────────────────────────────────────
+        { label: 'Disable Anti-Cheat',         type: 'toggle', id: 'noac', action: (on) => {
+            if (!window.antiCheat) { _adminLog('Anti-cheat not found'); return; }
+            if (on) {
+              window.antiCheat.devToolsDetected = false;
+              window.antiCheat.devToolsOpen     = false;
+              window.antiCheat.aggressiveActive = false;
+              window.antiCheat.debuggerSpamIntervals.forEach(i => clearInterval(i));
+              window.antiCheat.debuggerSpamIntervals = [];
+              if (window.antiCheat.checkInterval) {
+                clearInterval(window.antiCheat.checkInterval);
+                window.antiCheat.checkInterval = null;
+              }
+              // Override checkOnGuess to always return true
+              window.antiCheat.checkOnGuess = () => true;
+              _adminLog('Anti-cheat disabled ✓');
+              showToast('Anti-cheat disabled');
+            } else {
+              _adminLog('Refresh page to re-enable anti-cheat', '#ffcc44');
+            }
+        }},
+
+        // ── Clear ban ─────────────────────────────────────────────────────
+        { label: 'Clear Ban Cookie',           type: 'action', action: () => {
+            document.cookie = 'beatdle_ban=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;';
+            if (window.antiCheat) {
+              window.antiCheat.bannedUntil    = null;
+              window.antiCheat.devToolsDetected = false;
+            }
+            _adminLog('Ban cleared — refresh page');
+            showToast('Ban cleared! Refresh to play.');
+        }},
+
+        // ── Skip to answer (reveal in UI) ─────────────────────────────────
+        { label: 'Show Answer in Toast (3s)',  type: 'action', action: () => {
+            try {
+              let ans = null;
+              if (window.antiCheat && typeof encryptedAnswer !== 'undefined' && encryptedAnswer) {
+                ans = window.antiCheat.decrypt(encryptedAnswer);
+              } else if (typeof answerDisplay !== 'undefined' && answerDisplay) { ans = answerDisplay; }
+              else if (typeof answer !== 'undefined' && answer) { ans = answer; }
+              if (ans) { showToast('🎵 ' + ans); _adminLog('Answer shown in toast'); }
+              else      { _adminLog('No answer yet', '#ff6633'); }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Fill input with answer ────────────────────────────────────────
+        { label: 'Type Answer in Input',       type: 'action', action: () => {
+            try {
+              let ans = null;
+              if (window.antiCheat && typeof encryptedAnswer !== 'undefined' && encryptedAnswer) {
+                ans = window.antiCheat.decrypt(encryptedAnswer);
+              } else if (typeof answerDisplay !== 'undefined' && answerDisplay) { ans = answerDisplay; }
+              else if (typeof answer !== 'undefined' && answer) { ans = answer; }
+              if (!ans) { _adminLog('No answer yet', '#ff6633'); return; }
+              const input = document.getElementById('guess-input');
+              if (input) {
+                input.value = ans;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.focus();
+                _adminLog('Answer typed into search box');
+              }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Unlock all guesses (reset attempts) ───────────────────────────
+        { label: 'Reset Attempts to 0',        type: 'action', action: () => {
+            try {
+              if (typeof attempts !== 'undefined') {
+                window.attempts = 0;
+                const el = document.getElementById('attempts-count');
+                if (el) el.textContent = '0/6';
+                _adminLog('Attempts reset to 0');
+              }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        // ── Force game over (win) ─────────────────────────────────────────
+        { label: 'Force Win Screen',           type: 'action', action: () => {
+            try {
+              if (typeof endGame === 'function') {
+                if (window.antiCheat) { window.antiCheat.devToolsDetected = false; }
+                endGame(true);
+                _adminLog('Win screen forced');
+              } else {
+                _adminLog('endGame() not found', '#ff6633');
+              }
+            } catch(e) { _adminLog('ERR: ' + e.message, '#ff4444'); }
+        }},
+
+        { label: '← Back', type: 'back' },
       ]
     },
 
