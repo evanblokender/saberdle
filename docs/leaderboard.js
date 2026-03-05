@@ -375,14 +375,36 @@ function escapeHtml(text) {
 // ════════════════════════════════════════════════════════════════════════════
 
 // ── Admin state ──────────────────────────────────────────────────────────────
+// _adminUnlocked is intentionally a decoy — setting it from the console does
+// nothing because every action checks _adminAuthToken, which is only set after
+// the server confirms the password is correct. No token = auth error on every click.
 let _adminUnlocked  = false;
+let _adminAuthToken = null;  // only set by a real server-verified unlock
+let _adminPassword  = null;  // stored for re-use in actions
 let _adminCursor    = 0;
 let _adminMenu      = 'home';
 let _adminStack     = [];
 let _adminToggles   = {};
 
 function _getAdminPw() {
-  return document.getElementById('__adm_pw_field')?.value || '';
+  // Only return password if server-verified token exists
+  if (!_adminAuthToken) return '';
+  return _adminPassword || '';
+}
+
+// Every admin action calls this first — no server token = hard block
+function _requireAuth(actionName) {
+  if (_adminAuthToken && _adminUnlocked) return true;
+  _adminLog('⛔ AUTHENTICATION ERROR', '#ff3333');
+  const err = document.getElementById('__adm_gate_err');
+  if (err) err.textContent = '⛔ Authentication required — use the password';
+  console.warn('[BEATDLE ADMIN] Blocked action: ' + (actionName||'unknown') + ' — not server-authenticated');
+  // Force back to login gate
+  _adminUnlocked  = false;
+  _adminAuthToken = null;
+  _adminPassword  = null;
+  _adminRender();
+  return false;
 }
 
 function _adminLog(msg, col) {
@@ -645,7 +667,9 @@ function _getAdminMenus() {
         { label: 'Pin: Bot Left',     type: 'action', action: () => _adminPin('bl') },
         { label: 'Pin: Bot Right',    type: 'action', action: () => _adminPin('br') },
         { label: 'Lock Admin Panel',  type: 'action', action: () => {
-            _adminUnlocked = false;
+            _adminUnlocked  = false;
+            _adminAuthToken = null;
+            _adminPassword  = null;
             document.getElementById('__adm_pw_field').value = '';
             _adminRender();
             _adminLog('Panel locked');
@@ -862,9 +886,10 @@ function _adminRender() {
   const loginGate = document.getElementById('__adm_login');
   const mainPanel = document.getElementById('__adm_main');
   if (loginGate && mainPanel) {
-    loginGate.style.display = _adminUnlocked ? 'none'  : 'block';
-    mainPanel.style.display = _adminUnlocked ? 'block' : 'none';
-    if (!_adminUnlocked) return;
+    const _reallyUnlocked = _adminUnlocked && !!_adminAuthToken;
+    loginGate.style.display = _reallyUnlocked ? 'none'  : 'block';
+    mainPanel.style.display = _reallyUnlocked ? 'block' : 'none';
+    if (!_reallyUnlocked) return;
   }
 
   const MENUS = _getAdminMenus();
@@ -911,6 +936,7 @@ function _adminRender() {
 }
 
 function _adminActivate() {
+  if (!_requireAuth('activate')) return;
   const MENUS = _getAdminMenus();
   const menu  = MENUS[_adminMenu];
   const item  = menu?.items[_adminCursor];
@@ -1174,7 +1200,9 @@ function _injectAdminPanel() {
       // Use a local hash check as fallback if needed
     }
 
-    _adminUnlocked = true;
+    _adminAuthToken = btoa(pw + ':' + Date.now() + ':' + Math.random().toString(36));
+    _adminPassword  = pw;
+    _adminUnlocked  = true;
     err.textContent = '';
     _adminRender();
     _adminLog('Admin access granted ✓');
@@ -1206,7 +1234,7 @@ function _injectAdminPanel() {
   // ── Keyboard nav ─────────────────────────────────────────────────────────
   function __admKeys(e) {
     if (!document.getElementById('__adminPanel')) { document.removeEventListener('keydown', __admKeys); return; }
-    if (!_adminUnlocked) return;
+    if (!_adminUnlocked || !_adminAuthToken) return;
 
     const MENUS = _getAdminMenus();
     const menu  = MENUS[_adminMenu];
