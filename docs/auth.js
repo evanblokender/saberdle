@@ -277,31 +277,14 @@ function _showBanScreen(expiresISO) {
 }
 
 function triggerSignIn() {
-  if (window.google && window.google.accounts && window.google.accounts.id) {
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        _fallbackPopup();
-      }
-    });
-  } else {
-    _fallbackPopup();
+  if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+    showToast('Google Sign-In still loading, try again.');
+    return;
   }
-}
-
-function _fallbackPopup() {
-  const params = new URLSearchParams({
-    client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: 'postmessage',
-    response_type: 'token id_token',
-    scope: 'openid profile email',
-    prompt: 'select_account',
-  });
-  const popup = window.open(
-    `https://accounts.google.com/o/oauth2/auth?${params}`,
-    'google_login',
-    'width=500,height=600,left=' + ((screen.width - 500) / 2) + ',top=' + ((screen.height - 600) / 2)
+  window.google.accounts.id.renderButton(
+    document.getElementById('google-signin-btn'),
+    { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 280 }
   );
-  if (!popup) showToast('Pop-up blocked — please allow pop-ups for this site.');
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -334,7 +317,10 @@ function _initGSI() {
       ux_mode: 'popup',
       context: 'signin',
     });
-    console.log('[Auth] GSI initialized');
+    window.google.accounts.id.renderButton(
+      document.getElementById('google-signin-btn'),
+      { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 280 }
+    );
   } catch (e) {
     console.warn('[Auth] GSI init failed:', e);
   }
