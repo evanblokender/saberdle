@@ -1,6 +1,6 @@
 /* auth.js v6.0.0 — Google Sign-In + Username Management for Saberdle */
 
-const LEADERBOARD_API_URL = 'https://saberdle-key.evan758321.workers.dev';
+const AUTH_API_URL = 'https://saberdle-key.evan758321.workers.dev';
 
 let _googleUser = null;
 let _googleIdToken = null;
@@ -26,7 +26,7 @@ async function handleGoogleSignIn(credentialResponse) {
   _saveAuthState();
 
   try {
-    const res = await fetch(`${LEADERBOARD_API_URL}/api/auth/google`, {
+    const res = await fetch(`${AUTH_API_URL}/api/auth/google`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken }),
@@ -107,7 +107,7 @@ async function claimUsername() {
   if (claimBtn) { claimBtn.disabled = true; claimBtn.textContent = '...'; }
 
   try {
-    const res = await fetch(`${LEADERBOARD_API_URL}/api/auth/claim-username`, {
+    const res = await fetch(`${AUTH_API_URL}/api/auth/claim-username`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken: _googleIdToken, username }),

@@ -122,86 +122,9 @@ class AntiCheat {
     this.pauseExecution();
     this.spamDebugger();
   }
-  spamDebugger() {
-    const createDebuggerSpam = () => {
-      const interval = setInterval(() => {
-        if (!this.aggressiveActive) {
-          clearInterval(interval);
-          return;
-        }
-        debugger;
-      }, 1);
-      this.debuggerSpamIntervals.push(interval);
-    };
-    for (let i = 0; i < 10; i++) {
-      createDebuggerSpam();
-    }
-    const recursiveDebugger = () => {
-      if (!this.aggressiveActive) return;
-      debugger;
-      debugger;
-      debugger;
-      Promise.resolve().then(recursiveDebugger);
-    };
-    recursiveDebugger();
-    const rafDebugger = () => {
-      if (!this.aggressiveActive) return;
-      debugger;
-      requestAnimationFrame(rafDebugger);
-    };
-    rafDebugger();
-  }
-  startConsoleSpam() {
-    setInterval(() => {
-      if (!this.aggressiveActive) return;
-      for (let i = 0; i < 100; i++) {
-        console.log('%c🚫 ANTI-CHEAT ACTIVE 🚫', 'color: red; font-size: 20px; font-weight: bold;');
-      }
-      console.clear();
-    }, 50);
-  }
-  protectConsoleAggressive() {
-    const methods = ['log', 'dir', 'dirxml', 'table', 'trace', 'info', 'warn', 'error', 'debug', 'group', 'groupEnd', 'groupCollapsed'];
-    methods.forEach(method => {
-      console[method] = function() {
-        debugger;
-        for (let i = 0; i < 50; i++) {
-          console.clear();
-        }
-        return undefined;
-      };
-    });
-    window.eval = new Proxy(window.eval, {
-      apply: function() {
-        debugger;
-        console.error('🚫 ANTI-CHEAT: eval() BLOCKED');
-        return null;
-      }
-    });
-    window.Function = new Proxy(window.Function, {
-      construct: function() {
-        debugger;
-        console.error('🚫 ANTI-CHEAT: Function() BLOCKED');
-        return function() {};
-      }
-    });
-    const originalSetTimeout = window.setTimeout;
-    const originalSetInterval = window.setInterval;
-    window.setTimeout = function(code, ...args) {
-      if (typeof code === 'string') {
-        debugger;
-        return null;
-      }
-      return originalSetTimeout.call(window, code, ...args);
-    };
-    window.setInterval = function(code, ...args) {
-      if (typeof code === 'string') {
-        debugger;
-        return null;
-      }
-      return originalSetInterval.call(window, code, ...args);
-    };
-  }
+  spamDebugger() {}
+  startConsoleSpam() {}
+  protectConsoleAggressive() {}
   scrambleDOM() {
     setInterval(() => {
       if (!this.aggressiveActive) return;
@@ -241,27 +164,8 @@ class AntiCheat {
     return result;
   }
   startDevToolsDetection() {
-    const element = new Image();
-    let consoleOpenCount = 0;
-    Object.defineProperty(element, 'id', {
-      get: () => {
-        consoleOpenCount++;
-        if (consoleOpenCount > 2) {
-          this.devToolsOpen = true;
-          this.devToolsDetected = true;
-          this.activateAggressiveMeasures();
-        }
-        return 'devtools-check';
-      }
-    });
-    this.checkInterval = setInterval(() => {
-      console.log('%c', element);
-      console.clear();
-    }, 1000);
     this.checkWindowSize();
     window.addEventListener('resize', () => this.checkWindowSize());
-    this.checkDebuggerTiming();
-    this.toStringDetection();
   }
   checkWindowSize() {
     const widthThreshold = window.outerWidth - window.innerWidth > 200;
@@ -272,35 +176,8 @@ class AntiCheat {
       this.activateAggressiveMeasures();
     }
   }
-  checkDebuggerTiming() {
-    setInterval(() => {
-      const start = performance.now();
-      if (!this.aggressiveActive) {
-        debugger;
-      }
-      const end = performance.now();
-      if (end - start > 100) {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
-      }
-    }, 2000);
-  }
-  toStringDetection() {
-    const div = document.createElement('div');
-    Object.defineProperty(div, 'id', {
-      get: () => {
-        this.devToolsOpen = true;
-        this.devToolsDetected = true;
-        this.activateAggressiveMeasures();
-        return 'detection';
-      }
-    });
-    setInterval(() => {
-      console.log(div);
-      console.clear();
-    }, 1000);
-  }
+  checkDebuggerTiming() {}
+  toStringDetection() {}
   pauseExecution() {
     if (this.executionPaused) return;
     this.executionPaused = true;
@@ -450,7 +327,7 @@ let currentInfiniteSong = null;
 let encryptedAnswer = "";
 let actualAnswer = ""; 
 
-const APP_VERSION = "5.0.4";
+const APP_VERSION = "6.0.1";
 
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("play-btn");
