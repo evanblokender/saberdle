@@ -1,6 +1,7 @@
 /* auth.js v6.0.0 — Google Sign-In + Username Management for Saberdle */
 
 const AUTH_API_URL = 'https://saberdle-key.evan758321.workers.dev';
+const GOOGLE_CLIENT_ID = '228857418978-6ans8s7e3iu8ub2koel1r9628c4fdc35.apps.googleusercontent.com';
 
 let _googleUser = null;
 let _googleIdToken = null;
@@ -288,13 +289,8 @@ function triggerSignIn() {
 }
 
 function _fallbackPopup() {
-  const clientId = document.getElementById('g_id_onload')?.dataset?.clientId;
-  if (!clientId || clientId === 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID' || !clientId) {
-    alert('Google Client ID not configured. See SETUP_GUIDE.md.');
-    return;
-  }
   const params = new URLSearchParams({
-    client_id: clientId,
+    client_id: GOOGLE_CLIENT_ID,
     redirect_uri: 'postmessage',
     response_type: 'token id_token',
     scope: 'openid profile email',
@@ -331,15 +327,14 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function _initGSI() {
-  const clientId = document.getElementById('g_id_onload')?.dataset?.clientId;
-  if (!clientId || clientId === 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID' || !clientId) return;
   try {
     window.google.accounts.id.initialize({
-      client_id: clientId,
+      client_id: GOOGLE_CLIENT_ID,
       callback: handleGoogleSignIn,
       ux_mode: 'popup',
       context: 'signin',
     });
+    console.log('[Auth] GSI initialized');
   } catch (e) {
     console.warn('[Auth] GSI init failed:', e);
   }
