@@ -1219,3 +1219,38 @@ button:disabled {
   .game-meta-bar { gap: 8px; }
   .meta-divider { display: none; }
 }
+
+/* ── Google Sign-In Button ────────────────────────────────── */
+.google-signin-wrapper {
+  display: flex;
+  justify-content: center;
+  margin: 20px 0;
+}
+.google-signin-custom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 24px;
+  background: #fff;
+  border: none;
+  border-radius: 50px;
+  color: #3c4043;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.35);
+  width: 100%;
+  justify-content: center;
+  max-width: 280px;
+}
+.google-signin-custom:hover {
+  background: #f8f8f8;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+  transform: translateY(-1px);
+}
+.google-signin-custom:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
