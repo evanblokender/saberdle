@@ -433,32 +433,25 @@ class AntiCheat {
 }
 window.antiCheat = new AntiCheat();
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// MAIN GAME CODE
-// ═══════════════════════════════════════════════════════════════════════════════
-//i know it looks vibe coded, TRUST ITS NOT, i only used ai to add comments so i can find and easily debug something.
 let previewTime = 3;
 let attempts = 0;
 const maxAttempts = 6;
 let isPlaying = false;
 let previewInterval = null;
-let answer = ""; // Encrypted answer stored here
+let answer = ""; 
 let answerDisplay = "";
 let dailyDate = "";
 let gameOver = false;
-let gameMode = "daily"; // "daily" or "infinite"
+let gameMode = "daily"; 
 let infiniteScore = 0;
 let infiniteSongs = [];
 let currentInfiniteSong = null;
 
-// Anti-cheat: Store encrypted answer separately
 let encryptedAnswer = "";
-let actualAnswer = ""; // The real answer, hidden from console inspection
+let actualAnswer = ""; 
 
-// Version for cache busting
 const APP_VERSION = "5.0.4";
 
-// DOM Elements
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("play-btn");
 const skipBtn = document.getElementById("skip-btn");
@@ -479,7 +472,6 @@ const modeBtn = document.getElementById("mode-btn");
 const resetBtn = document.getElementById("reset-btn");
 const infiniteScoreEl = document.getElementById("infinite-score");
 
-// Modal Elements
 const helpBtn = document.getElementById("help-btn");
 const statsBtn = document.getElementById("stats-btn");
 const themeBtn = document.getElementById("theme-btn");
@@ -488,8 +480,6 @@ const statsModal = document.getElementById("stats-modal");
 const modeModal = document.getElementById("mode-modal");
 const toast = document.getElementById("toast");
 
-// ─── NEW: Lock/unlock game controls ──────────────────────────────────────────
-// Controls are locked during loading so nothing is clickable before session is ready
 function lockGameControls() {
   if (playBtn)    playBtn.disabled    = true;
   if (skipBtn)    skipBtn.disabled    = true;
@@ -504,10 +494,8 @@ function unlockGameControls() {
   }
 }
 
-// Lock immediately so nothing is clickable while loading screen is up
 lockGameControls();
 
-// ─── NEW: async init — waits for session token before starting the game ───────
 async function init() {
   checkVersion();
   loadTheme();
@@ -516,24 +504,19 @@ async function init() {
   updateCountdown();
   setInterval(updateCountdown, 1000);
 
-  // Step 1: Init leaderboard first — this fetches the session token
-  // and drives the loading screen progress bar
   window.setLoadingProgress?.(5, 'Starting up...');
 
   if (window.leaderboardAPI) {
     try {
       await window.leaderboardAPI.init();
     } catch (err) {
-      // leaderboard.js will have already called showSessionExpired()
       console.error('[Beatdle] Session init failed, game locked:', err);
-      return; // Stop here — do not unlock controls
+      return; 
     }
   } else {
-    // Fallback: no leaderboard.js, just hide loading and continue
     window.hideLoadingScreen?.();
   }
 
-  // Step 2: Session confirmed — now load the song
   window.setLoadingProgress?.(80, 'Loading song...');
 
   if (gameMode === "daily") {
@@ -542,50 +525,40 @@ async function init() {
     await loadInfiniteMode();
   }
 
-  // Step 3: Everything ready — unlock controls
   unlockGameControls();
 }
 
-// Run init once DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   init();
 });
 
-// Version Management (Cache Busting)
 function checkVersion() {
   const savedVersion = localStorage.getItem("beatdle-version");
   if (savedVersion !== APP_VERSION) {
     console.log("New version detected, migrating data");
     
-    // Clear any game states in old format to prevent errors
-    // (Users will just need to replay today's daily if they already completed it)
     for (let i = localStorage.length - 1; i >= 0; i--) {
       const key = localStorage.key(i);
       if (key && key.startsWith("beatdle-2") && !key.includes("stats")) {
         const state = localStorage.getItem(key);
         try {
           const parsed = JSON.parse(state);
-          // Check if it's the old format (no migrated flag)
           if (parsed && parsed.guesses && !parsed.migrated) {
             console.log(`Clearing old format state: ${key}`);
             localStorage.removeItem(key);
           }
         } catch (e) {
-          // Invalid state, remove it
           localStorage.removeItem(key);
         }
       }
     }
     
-    // Update version
     localStorage.setItem("beatdle-version", APP_VERSION);
     showToast("App updated! Old game states cleared.");
   }
 }
 
-// Migrate old game state formats to new format
 function migrateOldGameStates() {
-  // Find all beatdle game states
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
     if (key && key.startsWith("beatdle-") && key !== "beatdle-stats" && 
@@ -593,9 +566,7 @@ function migrateOldGameStates() {
         key !== "beatdle-version" && key !== "beatdle-infinite-score") {
       try {
         const state = JSON.parse(localStorage.getItem(key));
-        // Check if state needs migration (old format had text with emoji prefix)
         if (state && state.guesses) {
-          // Mark as migrated if not already
           if (!state.migrated) {
             state.migrated = true;
             localStorage.setItem(key, JSON.stringify(state));
@@ -609,7 +580,6 @@ function migrateOldGameStates() {
   }
 }
 
-// Game Mode Management
 function loadGameMode() {
   const savedMode = localStorage.getItem("beatdle-mode");
   if (savedMode) {
@@ -631,7 +601,6 @@ function updateModeDisplay() {
     modeIndicator.textContent = gameMode === "daily" ? "Daily Mode" : "Infinite Mode";
   }
   
-  // Show/hide mode-specific elements
   if (gameMode === "infinite") {
     if (countdownParent) countdownParent.style.display = "none";
     if (infiniteScoreContainer) infiniteScoreContainer.style.display = "block";
@@ -642,7 +611,6 @@ function updateModeDisplay() {
   }
 }
 
-// ─── UPDATED: switchMode is async so controls stay locked during song load ────
 async function switchMode(newMode) {
   console.log(`Switching from ${gameMode} to ${newMode}`);
   
@@ -655,14 +623,11 @@ async function switchMode(newMode) {
     gameMode = newMode;
     saveGameMode();
     
-    // Lock controls during the switch so player can't interact mid-load
     lockGameControls();
     
-    // Reset game state FIRST before loading
     console.log("Resetting game...");
     resetGame();
     
-    // Prevent restoration of saved state when switching modes
     const skipRestore = true;
     
     console.log(`Loading ${gameMode} mode...`);
@@ -690,45 +655,35 @@ async function switchMode(newMode) {
   }
 }
 
-// Infinite Mode
 async function loadInfiniteMode() {
   try {
-    // BeatSaver API has pages of 20 songs each
-    // Let's randomize which page we fetch from (0-99 gives us access to 2000 songs)
     const randomPage = Math.floor(Math.random() * 100);
     
-    // Also randomize sort order to get more variety
     const sortOrders = ['Relevance', 'Rating', 'Latest'];
     const randomSort = sortOrders[Math.floor(Math.random() * sortOrders.length)];
     
     console.log(`Loading infinite mode: page ${randomPage}, sort ${randomSort}`);
     
-    // Load random ranked song from BeatSaver
     const response = await fetch(
       `https://api.beatsaver.com/search/text/${randomPage}?sortOrder=${randomSort}&ranked=true`
     );
     const data = await response.json();
     
     if (data.docs && data.docs.length > 0) {
-      // Get random song from this page's results
       const randomSong = data.docs[Math.floor(Math.random() * data.docs.length)];
       currentInfiniteSong = randomSong;
       
-      // ANTI-CHEAT: Encrypt the answer
       const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
-      answer = songAnswer; // Keep for compatibility
+      answer = songAnswer; 
       answerDisplay = randomSong.metadata.songName;
       
-      // Encrypt and store
       if (window.antiCheat) {
         encryptedAnswer = window.antiCheat.encrypt(songAnswer);
-        // Obfuscate console output
         console.log(`Selected song: [ENCRYPTED]`);
       } else {
         console.log(`Selected song: ${answerDisplay}`);
       }
       
-      // Load preview URL
       if (randomSong.versions && randomSong.versions.length > 0) {
         const previewURL = randomSong.versions[0].previewURL;
         audio.src = previewURL;
@@ -736,12 +691,10 @@ async function loadInfiniteMode() {
         updateTimeDisplay();
       }
       
-      // Load infinite score
       const savedScore = localStorage.getItem("beatdle-infinite-score");
       infiniteScore = savedScore ? parseInt(savedScore) : 0;
       updateInfiniteScoreDisplay();
     } else {
-      // If no songs found on this page, try page 0 as fallback
       console.log("No songs on random page, trying page 0");
       const fallbackResponse = await fetch(
         `https://api.beatsaver.com/search/text/0?sortOrder=Rating&ranked=true`
@@ -752,7 +705,6 @@ async function loadInfiniteMode() {
         const randomSong = fallbackData.docs[Math.floor(Math.random() * fallbackData.docs.length)];
         currentInfiniteSong = randomSong;
         
-        // ANTI-CHEAT: Encrypt the answer
         const songAnswer = randomSong.metadata.songName.toLowerCase().trim();
         answer = songAnswer;
         answerDisplay = randomSong.metadata.songName;
@@ -788,14 +740,12 @@ function saveInfiniteScore() {
   localStorage.setItem("beatdle-infinite-score", infiniteScore.toString());
 }
 
-// ─── UPDATED: lock controls while next song loads ─────────────────────────────
 function nextInfiniteSong() {
   resetGame();
   lockGameControls();
   loadInfiniteMode().then(() => unlockGameControls());
 }
 
-// Theme Management
 function loadTheme() {
   const theme = localStorage.getItem("beatdle-theme") || "dark";
   document.body.setAttribute("data-theme", theme);
@@ -809,28 +759,23 @@ function toggleTheme() {
   showToast(`Switched to ${newTheme} theme`);
 }
 
-// Load Daily Song
 async function loadDaily(skipRestore = false) {
   try {
     const cacheBuster = `?v=${Date.now()}`;
     
-    // Load from data.json instead of API
     const response = await fetch(`data.json${cacheBuster}`);
     const data = await response.json();
     
-    // ANTI-CHEAT: Immediately encrypt the answer after receiving
     const songAnswer = data.songName.toLowerCase().trim();
     answer = songAnswer;
     answerDisplay = data.songName;
     dailyDate = data.date;
     
-    // Encrypt and store
     if (window.antiCheat) {
       encryptedAnswer = window.antiCheat.encrypt(songAnswer);
       data.songName = "[REDACTED]";
     }
     
-    // Check if already played today (skip if switching modes)
     if (!skipRestore) {
       const gameState = loadGameState();
       if (gameState && gameState.date === dailyDate && gameState.completed) {
@@ -845,7 +790,6 @@ async function loadDaily(skipRestore = false) {
       }
     }
     
-    // Load audio
     audio.src = data.previewURL;
     audio.currentTime = 0;
     updateTimeDisplay();
@@ -855,7 +799,6 @@ async function loadDaily(skipRestore = false) {
   }
 }
 
-// Game State Management
 function loadGameState() {
   if (gameMode === "infinite") return null;
   
@@ -910,7 +853,6 @@ function restoreGameState(state) {
   }
 }
 
-// Statistics Management
 function loadStats() {
   const defaultStats = {
     played: 0,
@@ -980,7 +922,6 @@ function displayStats() {
   });
 }
 
-// Reset Game
 function resetGame() {
   attempts = 0;
   previewTime = 3;
@@ -1003,7 +944,6 @@ function resetGame() {
   currentTimeEl.textContent = "0:00";
 }
 
-// Time Formatting
 function formatTime(seconds) {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
@@ -1019,7 +959,6 @@ function updateAttemptsDisplay() {
   attemptsCount.textContent = `${attempts}/${maxAttempts}`;
 }
 
-// Audio Playback
 function playPreview() {
   if (isPlaying || gameOver) return;
   
@@ -1060,7 +999,6 @@ function stopPreview() {
   currentTimeEl.textContent = formatTime(previewTime);
 }
 
-// Skip
 function skipGuess() {
   if (gameOver) return;
   
@@ -1079,7 +1017,6 @@ function skipGuess() {
   saveGameState();
 }
 
-// Autocomplete
 let autocompleteTimeout;
 async function handleInput() {
   const query = guessInput.value.trim();
@@ -1131,11 +1068,9 @@ function displayAutocomplete(songs) {
   });
 }
 
-// Submit Guess
 function submitGuess(songName) {
   if (gameOver) return;
   
-  // ANTI-CHEAT: Check if DevTools was opened before allowing guess
   if (window.antiCheat && !window.antiCheat.checkOnGuess()) {
     return;
   }
@@ -1143,7 +1078,6 @@ function submitGuess(songName) {
   guessInput.value = "";
   autocompleteResults.innerHTML = "";
   
-  // Decrypt answer for comparison
   const decryptedAnswer = window.antiCheat ? window.antiCheat.decrypt(encryptedAnswer) : answer;
   const isCorrect = songName.toLowerCase().trim() === decryptedAnswer.toLowerCase().trim();
   
@@ -1167,7 +1101,6 @@ function submitGuess(songName) {
   saveGameState();
 }
 
-// Add Guess to List
 function addGuess(text, type) {
   const guess = document.createElement("div");
   guess.className = `guess-item ${type}`;
@@ -1185,7 +1118,6 @@ function addGuess(text, type) {
   guessesContainer.appendChild(guess);
 }
 
-// End Game
 function endGame(won) {
   gameOver = true;
   
@@ -1225,7 +1157,6 @@ function endGame(won) {
   }
 }
 
-// Share Result
 function shareResult() {
   const guesses = Array.from(guessesContainer.children);
   const squares = guesses.map(el => {
@@ -1252,7 +1183,6 @@ function shareResult() {
   }
 }
 
-// Countdown to Next Game
 function updateCountdown() {
   const now = new Date();
   
@@ -1273,7 +1203,6 @@ function updateCountdown() {
   countdownEl.textContent = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
-// Toast Notification
 function showToast(message) {
   toast.textContent = message;
   toast.classList.add("show");
@@ -1283,7 +1212,6 @@ function showToast(message) {
   }, 3000);
 }
 
-// Modal Management
 function openModal(modal) {
   modal.classList.add("show");
   document.body.classList.add("modal-open");
@@ -1297,7 +1225,6 @@ function closeModal(modal) {
   document.body.classList.remove("modal-open");
 }
 
-// Event Listeners
 function setupEventListeners() {
   playBtn.addEventListener("click", playPreview);
   skipBtn.addEventListener("click", skipGuess);
@@ -1337,9 +1264,8 @@ function setupEventListeners() {
     });
   });
   
-  helpBtn.addEventListener("click", () => openModal(helpModal));
-  statsBtn.addEventListener("click", () => openModal(statsModal));
-  themeBtn.addEventListener("click", toggleTheme);
+  helpBtn?.addEventListener("click", () => openModal(helpModal));
+  statsBtn?.addEventListener("click", () => openModal(statsModal));
   
   document.querySelectorAll(".modal-close").forEach(btn => {
     btn.addEventListener("click", (e) => {
@@ -1364,3 +1290,46 @@ function setupEventListeners() {
     }
   });
 }
+
+
+(function initLiquidButtons() {
+  function addRipple(e) {
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple-wave';
+    const size = Math.max(rect.width, rect.height);
+    ripple.style.cssText = `width:${size}px;height:${size}px;left:${x - size/2}px;top:${y - size/2}px;`;
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 700);
+    btn.style.setProperty('--x', (x/rect.width*100)+'%');
+    btn.style.setProperty('--y', (y/rect.height*100)+'%');
+  }
+  document.addEventListener('pointerdown', (e) => {
+    const btn = e.target.closest('.liquid-btn');
+    if (btn) addRipple({ currentTarget: btn, clientX: e.clientX, clientY: e.clientY });
+  }, { passive: true });
+})();
+
+const _origPlayPreview = typeof playPreview === 'function' ? playPreview : null;
+const _origStopPreview = typeof stopPreview === 'function' ? stopPreview : null;
+
+function _updateVisualizerState(playing) {
+  const viz = document.getElementById('visualizer');
+  const playBtnEl = document.getElementById('play-btn');
+  if (viz) viz.classList.toggle('active', playing);
+  if (playBtnEl) playBtnEl.classList.toggle('playing', playing);
+  const playIcon = playBtnEl?.querySelector('.play-icon');
+  const pauseIcon = playBtnEl?.querySelector('.pause-icon');
+  if (playIcon) playIcon.style.display = playing ? 'none' : 'block';
+  if (pauseIcon) pauseIcon.style.display = playing ? 'block' : 'none';
+}
+
+if (typeof audio !== 'undefined' && audio) {
+  audio.addEventListener('play', () => _updateVisualizerState(true));
+  audio.addEventListener('pause', () => _updateVisualizerState(false));
+  audio.addEventListener('ended', () => _updateVisualizerState(false));
+}
+
