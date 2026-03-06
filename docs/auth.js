@@ -275,15 +275,75 @@ function _showBanScreen(expiresISO) {
   `;
 }
 
+function triggerSignIn() {
+  if (window.google && window.google.accounts && window.google.accounts.id) {
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        _fallbackPopup();
+      }
+    });
+  } else {
+    _fallbackPopup();
+  }
+}
+
+function _fallbackPopup() {
+  const clientId = document.getElementById('g_id_onload')?.dataset?.clientId;
+  if (!clientId || clientId === 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID' || !clientId) {
+    alert('Google Client ID not configured. See SETUP_GUIDE.md.');
+    return;
+  }
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: 'postmessage',
+    response_type: 'token id_token',
+    scope: 'openid profile email',
+    prompt: 'select_account',
+  });
+  const popup = window.open(
+    `https://accounts.google.com/o/oauth2/auth?${params}`,
+    'google_login',
+    'width=500,height=600,left=' + ((screen.width - 500) / 2) + ',top=' + ((screen.height - 600) / 2)
+  );
+  if (!popup) showToast('Pop-up blocked — please allow pop-ups for this site.');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   _loadAuthState();
   refreshAuthUI();
   updateHeaderAvatar();
 
-  if (_googleUser && !_googleIdToken) {
-    console.log('[Auth] Restoring display state from localStorage (token not available)');
+  const signinBtn = document.getElementById('google-signin-btn');
+  if (signinBtn) {
+    signinBtn.addEventListener('click', triggerSignIn);
+  }
+
+  if (window.google && window.google.accounts) {
+    _initGSI();
+  } else {
+    window.addEventListener('load', () => {
+      const gsiScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+      if (gsiScript) {
+        gsiScript.addEventListener('load', _initGSI);
+      }
+    });
   }
 });
+
+function _initGSI() {
+  const clientId = document.getElementById('g_id_onload')?.dataset?.clientId;
+  if (!clientId || clientId === 'REPLACE_WITH_YOUR_GOOGLE_CLIENT_ID' || !clientId) return;
+  try {
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleSignIn,
+      ux_mode: 'popup',
+      context: 'signin',
+    });
+  } catch (e) {
+    console.warn('[Auth] GSI init failed:', e);
+  }
+}
 
 window.googleAuth = {
   signOut,
@@ -294,6 +354,7 @@ window.googleAuth = {
   getIdToken,
   updateSubmitPromptUI,
   handleSignIn: handleGoogleSignIn,
+  triggerSignIn,
 };
 
 window.handleGoogleSignIn = handleGoogleSignIn;
