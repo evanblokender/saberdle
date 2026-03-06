@@ -327,7 +327,7 @@ let currentInfiniteSong = null;
 let encryptedAnswer = "";
 let actualAnswer = ""; 
 
-const APP_VERSION = "6.0.2";
+const APP_VERSION = "6.0.3";
 
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("play-btn");
