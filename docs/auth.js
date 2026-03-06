@@ -340,6 +340,13 @@ function _initGSI() {
       document.getElementById('google-signin-btn'),
       { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 280 }
     );
+    if (_googleUser && !_googleIdToken) {
+      window.google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          console.log('[Auth] Silent token refresh not available — user must interact');
+        }
+      });
+    }
   } catch (e) {
     console.warn('[Auth] GSI init failed:', e);
   }
