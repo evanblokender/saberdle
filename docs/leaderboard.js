@@ -224,10 +224,18 @@ async function submitToLeaderboard(score) {
     showToast('Claim a username first in Account settings!');
     return false;
   }
-  const idToken = window.googleAuth.getIdToken();
+  let idToken = window.googleAuth.getIdToken();
   if (!idToken) {
-    showToast('Session expired — please sign in again.');
-    return false;
+    showToast('Refreshing sign-in…');
+    idToken = await window.googleAuth.refreshIdToken?.();
+    if (!idToken) {
+      showToast('Could not verify sign-in. Please sign out and back in.');
+      return false;
+    }
+  }
+  if (!sessionToken) {
+    showToast('No server session — refreshing…');
+    try { await fetchSessionToken(); } catch { showToast('Could not connect to server.'); return false; }
   }
 
   const payload = { username, score, idToken };
@@ -237,7 +245,7 @@ async function submitToLeaderboard(score) {
     const res = await authFetch(`${LEADERBOARD_API_URL}/api/leaderboard`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ _e: encryptedPayload, username, score }),
+      body: JSON.stringify({ _e: encryptedPayload, username, score, idToken }),
     });
     const result = await res.json();
     if (result.success) {
