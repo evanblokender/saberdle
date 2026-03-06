@@ -291,21 +291,19 @@ document.addEventListener('DOMContentLoaded', () => {
   _loadAuthState();
   refreshAuthUI();
   updateHeaderAvatar();
+});
 
-  const signinBtn = document.getElementById('google-signin-btn');
-  if (signinBtn) {
-    signinBtn.addEventListener('click', triggerSignIn);
-  }
-
-  if (window.google && window.google.accounts) {
+window.addEventListener('load', () => {
+  if (window.google && window.google.accounts && window.google.accounts.id) {
     _initGSI();
   } else {
-    window.addEventListener('load', () => {
-      const gsiScript = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
-      if (gsiScript) {
-        gsiScript.addEventListener('load', _initGSI);
+    const interval = setInterval(() => {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        clearInterval(interval);
+        _initGSI();
       }
-    });
+    }, 100);
+    setTimeout(() => clearInterval(interval), 10000);
   }
 });
 
