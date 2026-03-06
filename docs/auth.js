@@ -207,7 +207,7 @@ function updateSubmitPromptUI() {
 }
 
 function isSignedIn() {
-  return !!(  _googleUser && _googleIdToken);
+  return !!(  _googleUser && _googleIdToken && _claimedUsername);
 }
 
 function getUsername() {
@@ -216,6 +216,27 @@ function getUsername() {
 
 function getIdToken() {
   return _googleIdToken || null;
+}
+
+async function refreshIdToken() {
+  return new Promise((resolve) => {
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+      resolve(null);
+      return;
+    }
+    const prevCallback = window.handleGoogleSignIn;
+    window.handleGoogleSignIn = (credentialResponse) => {
+      window.handleGoogleSignIn = prevCallback;
+      _googleIdToken = credentialResponse.credential;
+      resolve(_googleIdToken);
+    };
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        window.handleGoogleSignIn = prevCallback;
+        resolve(null);
+      }
+    });
+  });
 }
 
 function _saveAuthState() {
@@ -331,6 +352,7 @@ window.googleAuth = {
   isSignedIn,
   getUsername,
   getIdToken,
+  refreshIdToken,
   updateSubmitPromptUI,
   handleSignIn: handleGoogleSignIn,
   triggerSignIn,
