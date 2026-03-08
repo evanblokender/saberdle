@@ -327,7 +327,7 @@ let currentInfiniteSong = null;
 let encryptedAnswer = "";
 let actualAnswer = ""; 
 
-const APP_VERSION = "6.0.4";
+const APP_VERSION = "7.0.1";
 
 const audio = document.getElementById("audio");
 const playBtn = document.getElementById("play-btn");
@@ -1255,27 +1255,6 @@ function applySettings(settings) {
 
 function initSettingsModal() {
   const settings = loadSettings();
-
-  const sliders = [
-    { id: 'setting-preview-start', valId: 'setting-preview-start-val', key: 'previewStart', suffix: 's' },
-    { id: 'setting-preview-increment', valId: 'setting-preview-increment-val', key: 'previewIncrement', suffix: 's' },
-    { id: 'setting-max-attempts', valId: 'setting-max-attempts-val', key: 'maxAttempts', suffix: '' },
-  ];
-
-  sliders.forEach(({ id, valId, key, suffix }) => {
-    const el = document.getElementById(id);
-    const valEl = document.getElementById(valId);
-    if (!el || !valEl) return;
-    el.value = settings[key];
-    valEl.textContent = settings[key] + suffix;
-    el.addEventListener('input', () => {
-      const val = parseInt(el.value);
-      valEl.textContent = val + suffix;
-      settings[key] = val;
-      saveSettings(settings);
-      applySettings(settings);
-    });
-  });
 
   const toggles = [
     { id: 'setting-autoplay', key: 'autoplay' },
