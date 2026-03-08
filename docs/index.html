@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=7.0.0">
+  <link rel="stylesheet" href="style.css?v=7.0.1">
   <script src="https://accounts.google.com/gsi/client"></script>
 </head>
 <body>
@@ -274,36 +274,6 @@
           <div class="settings-section-title">Gameplay</div>
           <div class="settings-row">
             <div>
-              <div class="settings-label">Starting Preview Length</div>
-              <div class="settings-sublabel">Seconds of audio for first play</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <input type="range" class="settings-slider" id="setting-preview-start" min="1" max="10" step="1" value="3">
-              <span class="settings-value-badge" id="setting-preview-start-val">3s</span>
-            </div>
-          </div>
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">Preview Increment on Skip</div>
-              <div class="settings-sublabel">Extra seconds added per skip/wrong</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <input type="range" class="settings-slider" id="setting-preview-increment" min="1" max="10" step="1" value="2">
-              <span class="settings-value-badge" id="setting-preview-increment-val">2s</span>
-            </div>
-          </div>
-          <div class="settings-row">
-            <div>
-              <div class="settings-label">Max Attempts</div>
-              <div class="settings-sublabel">Guesses before game over</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;">
-              <input type="range" class="settings-slider" id="setting-max-attempts" min="3" max="10" step="1" value="6">
-              <span class="settings-value-badge" id="setting-max-attempts-val">6</span>
-            </div>
-          </div>
-          <div class="settings-row">
-            <div>
               <div class="settings-label">Auto-play on Skip</div>
               <div class="settings-sublabel">Play preview automatically after skipping</div>
             </div>
@@ -475,9 +445,9 @@
     window.showSessionExpired = showSessionExpired;
   </script>
 
-  <script src="auth.js?v=7.0.0"></script>
-  <script src="leaderboard.js?v=7.0.0"></script>
-  <script src="main.js?v=7.0.0"></script>
+  <script src="auth.js?v=7.0.1"></script>
+  <script src="leaderboard.js?v=7.0.1"></script>
+  <script src="main.js?v=7.0.1"></script>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
