@@ -69,6 +69,9 @@
         <button id="stats-btn" class="icon-btn liquid-btn" aria-label="Statistics" title="Statistics">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
         </button>
+        <button id="settings-btn" class="icon-btn liquid-btn" aria-label="Settings" title="Settings">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
         <button id="help-btn" class="icon-btn liquid-btn" aria-label="How to Play" title="How to Play">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </button>
@@ -134,10 +137,12 @@
         </div>
       </div>
 
+      <div id="skip-btn-wrap">
       <button id="skip-btn" class="skip-button liquid-btn">
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 4l10 8-10 8V4z"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
         Skip &nbsp;<span class="skip-badge">+2s</span>
       </button>
+      </div>
 
       <div class="input-section">
         <div class="input-wrapper">
@@ -163,6 +168,17 @@
         </div>
         <div class="next-game-row" id="next-game-row">
           Next Saberdle in <span class="countdown-val" id="countdown">--:--:--</span>
+        </div>
+      </div>
+
+      <!-- Sidebar: inline leaderboard (visible on desktop) -->
+      <div class="sidebar-panel" id="sidebar-panel">
+        <div class="sidebar-header">
+          <span class="sidebar-title">🏆 Leaderboard</span>
+          <button class="sidebar-refresh liquid-btn" id="sidebar-refresh-btn">↺ Refresh</button>
+        </div>
+        <div class="sidebar-lb-list" id="sidebar-lb-list">
+          <div class="sidebar-empty">Loading…</div>
         </div>
       </div>
 
@@ -244,6 +260,118 @@
         <div id="leaderboard-list" class="leaderboard-list">
           <div class="lb-loading">Loading…</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-modal" class="modal">
+    <div class="modal-overlay"></div>
+    <div class="modal-content settings-modal-content">
+      <div class="modal-header"><h2>⚙️ Settings</h2><button class="modal-close liquid-btn">&times;</button></div>
+      <div class="modal-body">
+
+        <div class="settings-section">
+          <div class="settings-section-title">Gameplay</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Starting Preview Length</div>
+              <div class="settings-sublabel">Seconds of audio for first play</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" class="settings-slider" id="setting-preview-start" min="1" max="10" step="1" value="3">
+              <span class="settings-value-badge" id="setting-preview-start-val">3s</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Preview Increment on Skip</div>
+              <div class="settings-sublabel">Extra seconds added per skip/wrong</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" class="settings-slider" id="setting-preview-increment" min="1" max="10" step="1" value="2">
+              <span class="settings-value-badge" id="setting-preview-increment-val">2s</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Max Attempts</div>
+              <div class="settings-sublabel">Guesses before game over</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <input type="range" class="settings-slider" id="setting-max-attempts" min="3" max="10" step="1" value="6">
+              <span class="settings-value-badge" id="setting-max-attempts-val">6</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Auto-play on Skip</div>
+              <div class="settings-sublabel">Play preview automatically after skipping</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-autoplay" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Appearance</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Theme</div>
+            </div>
+            <select class="settings-select" id="setting-theme">
+              <option value="dark">Dark (Default)</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Show Sidebar Leaderboard</div>
+              <div class="settings-sublabel">Inline leaderboard on desktop</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-sidebar" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Visualizer Bars</div>
+              <div class="settings-sublabel">Audio waveform animation while playing</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-visualizer" checked>
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Data</div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Reset Statistics</div>
+              <div class="settings-sublabel">Clear win/loss history (irreversible)</div>
+            </div>
+            <button class="settings-danger-btn liquid-btn" id="setting-reset-stats">Reset Stats</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Reset Infinite Score</div>
+              <div class="settings-sublabel">Set your local infinite score to 0</div>
+            </div>
+            <button class="settings-danger-btn liquid-btn" id="setting-reset-infinite">Reset Score</button>
+          </div>
+          <div class="settings-row">
+            <div>
+              <div class="settings-label">Export Game Data</div>
+              <div class="settings-sublabel">Download all your local data as JSON</div>
+            </div>
+            <button class="settings-neutral-btn liquid-btn" id="setting-export">Export</button>
+          </div>
+        </div>
+
       </div>
     </div>
   </div>

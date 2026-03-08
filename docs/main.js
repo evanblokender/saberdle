@@ -1210,3 +1210,260 @@ if (typeof audio !== 'undefined' && audio) {
   audio.addEventListener('ended', () => _updateVisualizerState(false));
 }
 
+
+/* ═══════════════════════════════════════════════════════
+   SETTINGS SYSTEM
+   ═══════════════════════════════════════════════════════ */
+
+const DEFAULT_SETTINGS = {
+  previewStart: 3,
+  previewIncrement: 2,
+  maxAttempts: 6,
+  autoplay: true,
+  theme: 'dark',
+  sidebar: true,
+  visualizer: true,
+};
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('saberdle_settings');
+    return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : { ...DEFAULT_SETTINGS };
+  } catch { return { ...DEFAULT_SETTINGS }; }
+}
+
+function saveSettings(settings) {
+  try { localStorage.setItem('saberdle_settings', JSON.stringify(settings)); } catch {}
+}
+
+function applySettings(settings) {
+  // Apply theme
+  document.body.setAttribute('data-theme', settings.theme || 'dark');
+  // Apply sidebar visibility
+  const sidebar = document.getElementById('sidebar-panel');
+  if (sidebar) sidebar.style.display = settings.sidebar ? '' : 'none';
+  // Apply visualizer visibility
+  const viz = document.getElementById('visualizer');
+  if (viz) viz.style.display = settings.visualizer ? '' : 'none';
+  // Apply gameplay settings (global vars)
+  if (typeof maxAttempts !== 'undefined') {
+    window._settingsMaxAttempts = settings.maxAttempts;
+  }
+  window._settingsPreviewIncrement = settings.previewIncrement;
+  window._settingsAutoplay = settings.autoplay;
+}
+
+function initSettingsModal() {
+  const settings = loadSettings();
+
+  const sliders = [
+    { id: 'setting-preview-start', valId: 'setting-preview-start-val', key: 'previewStart', suffix: 's' },
+    { id: 'setting-preview-increment', valId: 'setting-preview-increment-val', key: 'previewIncrement', suffix: 's' },
+    { id: 'setting-max-attempts', valId: 'setting-max-attempts-val', key: 'maxAttempts', suffix: '' },
+  ];
+
+  sliders.forEach(({ id, valId, key, suffix }) => {
+    const el = document.getElementById(id);
+    const valEl = document.getElementById(valId);
+    if (!el || !valEl) return;
+    el.value = settings[key];
+    valEl.textContent = settings[key] + suffix;
+    el.addEventListener('input', () => {
+      const val = parseInt(el.value);
+      valEl.textContent = val + suffix;
+      settings[key] = val;
+      saveSettings(settings);
+      applySettings(settings);
+    });
+  });
+
+  const toggles = [
+    { id: 'setting-autoplay', key: 'autoplay' },
+    { id: 'setting-sidebar', key: 'sidebar' },
+    { id: 'setting-visualizer', key: 'visualizer' },
+  ];
+
+  toggles.forEach(({ id, key }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = settings[key];
+    el.addEventListener('change', () => {
+      settings[key] = el.checked;
+      saveSettings(settings);
+      applySettings(settings);
+    });
+  });
+
+  const themeSelect = document.getElementById('setting-theme');
+  if (themeSelect) {
+    themeSelect.value = settings.theme;
+    themeSelect.addEventListener('change', () => {
+      settings.theme = themeSelect.value;
+      saveSettings(settings);
+      applySettings(settings);
+    });
+  }
+
+  document.getElementById('setting-reset-stats')?.addEventListener('click', () => {
+    if (confirm('Reset all statistics? This cannot be undone.')) {
+      localStorage.removeItem('beatdle-stats');
+      showToast('Statistics reset.');
+    }
+  });
+
+  document.getElementById('setting-reset-infinite')?.addEventListener('click', () => {
+    if (confirm('Reset your infinite score to 0?')) {
+      localStorage.setItem('beatdle-infinite-score', '0');
+      if (typeof infiniteScore !== 'undefined') {
+        // eslint-disable-next-line no-global-assign
+        infiniteScore = 0;
+        if (typeof updateInfiniteScoreDisplay === 'function') updateInfiniteScoreDisplay();
+      }
+      showToast('Infinite score reset.');
+    }
+  });
+
+  document.getElementById('setting-export')?.addEventListener('click', () => {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('beatdle') || key.startsWith('saberdle'))) {
+        try { data[key] = JSON.parse(localStorage.getItem(key)); } catch { data[key] = localStorage.getItem(key); }
+      }
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'saberdle-data.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Data exported!');
+  });
+
+  applySettings(settings);
+}
+
+/* Override previewTime increment to respect settings */
+const _origSkipGuess = typeof skipGuess === 'function' ? skipGuess.toString() : null;
+
+/* Patch skipGuess to use settings increment */
+const _nativeSkipGuess = window.skipGuess || skipGuess;
+function skipGuess() {
+  if (gameOver) return;
+  const inc = window._settingsPreviewIncrement || 2;
+  attempts++;
+  previewTime += inc;
+  addGuess("Skip", "skip");
+  updateAttemptsDisplay();
+  updateTimeDisplay();
+  if (attempts >= (window._settingsMaxAttempts || maxAttempts)) {
+    endGame(false);
+  } else if (window._settingsAutoplay !== false) {
+    playPreview();
+  }
+  saveGameState();
+}
+
+/* ═══════════════════════════════════════════════════════
+   SIDEBAR LEADERBOARD
+   ═══════════════════════════════════════════════════════ */
+
+function updateSidebarLeaderboard() {
+  const list = document.getElementById('sidebar-lb-list');
+  if (!list) return;
+
+  // Pull from leaderboardData if available
+  const data = typeof leaderboardData !== 'undefined' ? leaderboardData : [];
+  if (!data.length) {
+    list.innerHTML = '<div class="sidebar-empty">No scores yet. Be the first!</div>';
+    return;
+  }
+
+  const myUsername = window.googleAuth?.getUsername() || '';
+  const sorted = [...data].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  list.innerHTML = '';
+  sorted.slice(0, 25).forEach((entry, i) => {
+    const row = document.createElement('div');
+    row.className = 'sidebar-lb-row';
+    if (myUsername && entry.username?.toLowerCase() === myUsername.toLowerCase()) {
+      row.classList.add('current-user');
+    }
+    const medals = ['🥇', '🥈', '🥉'];
+    const rank = medals[i] || `#${i + 1}`;
+    row.innerHTML = `
+      <span class="sidebar-rank">${rank}</span>
+      <span class="sidebar-username">${entry.username || 'Unknown'}</span>
+      <span class="sidebar-score">${entry.score ?? 0}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* Hook into leaderboard data updates */
+const _origUpdateLeaderboardDisplay = typeof updateLeaderboardDisplay === 'function' ? updateLeaderboardDisplay : null;
+if (_origUpdateLeaderboardDisplay) {
+  window.updateLeaderboardDisplay = function() {
+    _origUpdateLeaderboardDisplay();
+    updateSidebarLeaderboard();
+  };
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Settings button
+  const settingsBtn = document.getElementById('settings-btn');
+  const settingsModal = document.getElementById('settings-modal');
+  settingsBtn?.addEventListener('click', () => {
+    settingsModal?.classList.add('show');
+    document.body.classList.add('modal-open');
+  });
+
+  // Sidebar refresh
+  document.getElementById('sidebar-refresh-btn')?.addEventListener('click', () => {
+    const list = document.getElementById('sidebar-lb-list');
+    if (list) list.innerHTML = '<div class="sidebar-empty">Refreshing…</div>';
+    if (typeof window.leaderboardAPI?.load === 'function') {
+      window.leaderboardAPI.load().then(() => updateSidebarLeaderboard());
+    } else {
+      updateSidebarLeaderboard();
+    }
+  });
+
+  // Init settings
+  initSettingsModal();
+
+  // Patch updateLeaderboardDisplay after leaderboard.js loaded
+  setTimeout(() => {
+    if (typeof updateLeaderboardDisplay === 'function' && !window._sidebarPatched) {
+      window._sidebarPatched = true;
+      const orig = updateLeaderboardDisplay;
+      window.updateLeaderboardDisplay = function() {
+        orig();
+        updateSidebarLeaderboard();
+      };
+    }
+    updateSidebarLeaderboard();
+  }, 1500);
+});
+
+/* ═══════════════════════════════════════════════════════
+   MOD MENU PATCHES — Expose globals the mod menu needs
+   ═══════════════════════════════════════════════════════ */
+
+// Expose functions and state the mod menu references
+window.endGame = typeof endGame === 'function' ? endGame : window.endGame;
+window.skipGuess = skipGuess;
+window.playPreview = typeof playPreview === 'function' ? playPreview : window.playPreview;
+window.infiniteScore = typeof infiniteScore !== 'undefined' ? infiniteScore : 0;
+window.saveInfiniteScore = typeof saveInfiniteScore === 'function' ? saveInfiniteScore : window.saveInfiniteScore;
+window.updateInfiniteScoreDisplay = typeof updateInfiniteScoreDisplay === 'function' ? updateInfiniteScoreDisplay : window.updateInfiniteScoreDisplay;
+window.showUsernamePrompt = typeof showUsernamePrompt === 'function' ? showUsernamePrompt : window.showUsernamePrompt;
+
+// Expose antiCheat instance globally (mod menu reads window.antiCheat)
+// AntiCheat is already set to window.antiCheat in main.js init
+
+// Expose leaderboard helpers for mod menu
+window.fetchSessionToken = typeof fetchSessionToken === 'function' ? fetchSessionToken : window.fetchSessionToken;
+window.submitToLeaderboard = typeof submitToLeaderboard === 'function' ? submitToLeaderboard : window.submitToLeaderboard;
+window.loadLeaderboard = typeof loadLeaderboard === 'function' ? loadLeaderboard : window.loadLeaderboard;

@@ -242,17 +242,25 @@ async function refreshIdToken() {
 function _saveAuthState() {
   try {
     if (_googleUser) {
-      localStorage.setItem('saberdle_auth', JSON.stringify({
+      const state = {
         user: { name: _googleUser.name, picture: _googleUser.picture, sub: _googleUser.sub },
         username: _claimedUsername,
         savedAt: Date.now(),
-      }));
+      };
+      localStorage.setItem('saberdle_auth', JSON.stringify(state));
+      // Also persist idToken in sessionStorage so a page refresh doesn't log out
+      if (_googleIdToken) {
+        sessionStorage.setItem('saberdle_id_token', _googleIdToken);
+      }
     }
   } catch {}
 }
 
 function _clearAuthState() {
-  try { localStorage.removeItem('saberdle_auth'); } catch {}
+  try {
+    localStorage.removeItem('saberdle_auth');
+    sessionStorage.removeItem('saberdle_id_token');
+  } catch {}
 }
 
 function _loadAuthState() {
@@ -267,6 +275,11 @@ function _loadAuthState() {
     }
     _googleUser = parsed.user;
     _claimedUsername = parsed.username || null;
+    // Restore id token from session storage (survives page refreshes within same tab)
+    const savedToken = sessionStorage.getItem('saberdle_id_token');
+    if (savedToken) {
+      _googleIdToken = savedToken;
+    }
   } catch {}
 }
 
@@ -340,11 +353,19 @@ function _initGSI() {
       document.getElementById('google-signin-btn'),
       { theme: 'filled_black', size: 'large', shape: 'pill', text: 'signin_with', width: 280 }
     );
+    // If user data was restored from localStorage but we have no fresh token,
+    // try a silent prompt to get one (so refresh doesn't log you out)
     if (_googleUser && !_googleIdToken) {
       window.google.accounts.id.prompt((notification) => {
         if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-          console.log('[Auth] Silent token refresh not available — user must interact');
+          // Silent refresh not available - user still appears logged in with username
+          // They only lose the ability to submit to leaderboard until they re-auth
+          console.log('[Auth] Silent token refresh not available — showing as signed in (no submit until manual re-auth)');
+          // Update UI to show signed in state (without leaderboard submit capability)
+          refreshAuthUI();
+          updateHeaderAvatar();
         }
+        // If prompt succeeded, handleGoogleSignIn callback will fire and update token
       });
     }
   } catch (e) {

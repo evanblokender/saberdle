@@ -163,6 +163,8 @@ async function loadLeaderboard() {
       leaderboardData = Array.isArray(result.data) ? result.data : [];
       updateLeaderboardDisplay();
       _updateAdminStats();
+      // Update sidebar if available
+      if (typeof updateSidebarLeaderboard === 'function') updateSidebarLeaderboard();
     } else {
       if (list) list.innerHTML = '<div class="lb-error">Unable to load leaderboard.</div>';
     }
